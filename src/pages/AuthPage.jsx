@@ -123,6 +123,13 @@ const CSS = `
     border-radius: 99px; padding: 4px 10px;
     font-size: 11px; font-weight: 600; color: #6366f1;
   }
+
+  /* Mobile Responsive */
+  @media (max-width: 480px) {
+    .auth-bg { padding: 16px; }
+    .auth-card { padding: 30px 24px; border-radius: 20px; }
+    .auth-btn { font-size: 14px; padding: 12px; }
+  }
 `;
 
 function StyleInjector({ css }) {

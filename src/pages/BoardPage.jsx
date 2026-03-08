@@ -178,6 +178,34 @@ const GLOBAL_CSS = `
     z-index: 2000;
   }
   @keyframes toastIn { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* Mobile Responsive */
+  .header-container { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:16px; }
+  .header-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .stats-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .stats-right { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+
+  @media (max-width: 768px) {
+    header { padding: 16px 20px 14px !important; }
+    .header-container { flex-direction: column; align-items: stretch; gap: 16px; margin-bottom: 20px; }
+    .header-logo-wrap { justify-content: flex-start; }
+    .header-actions { flex-direction: column; align-items: stretch; gap: 12px; }
+    .search-input { width: 100%; }
+    .add-btn { width: 100%; }
+    .user-info-wrap { justify-content: space-between; border-top: 1px solid rgba(99,91,255,0.08); padding-top: 12px; }
+    
+    .stats-row { justify-content: center; gap: 8px; }
+    .stat-pill { padding: 6px 12px; }
+    .stat-pill > span:first-child { width: 20px; height: 20px; font-size: 11px; }
+    .stat-pill > span:nth-child(2) { font-size: 11px; }
+    .stat-pill > span:last-child { font-size: 16px; }
+    .stats-right { margin-left: 0; width: 100%; justify-content: space-between; margin-top: 8px; }
+    .stats-right .stat-pill { flex: 1; justify-content: center; }
+
+    main { padding: 20px 16px 32px !important; }
+    .modal-box { padding: 24px; border-radius: 20px; }
+    .delete-box { padding: 24px; border-radius: 20px; }
+  }
 `;
 
 /* ─── CONSTANTS ─── */
@@ -513,10 +541,10 @@ export default function BoardPage() {
                 boxShadow: "0 4px 24px rgba(99,91,255,0.07)",
             }}>
                 <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
+                    <div className="header-container">
 
                         {/* Logo */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div className="header-logo-wrap" style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <div style={{ width: 44, height: 44, borderRadius: 14, background: "linear-gradient(135deg,#635bff 0%,#818cf8 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 4px 14px rgba(99,91,255,0.3)" }}>🎓</div>
                             <div>
                                 <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 24, color: "#1e1b4b", letterSpacing: "-0.5px" }}>InternTrack</div>
@@ -525,7 +553,7 @@ export default function BoardPage() {
                         </div>
 
                         {/* Right controls */}
-                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <div className="header-actions">
                             {/* Real-time indicator */}
                             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#6b7280", fontWeight: 500 }}>
                                 <span className="realtime-dot" />
@@ -536,15 +564,17 @@ export default function BoardPage() {
                             <button className="add-btn" onClick={openAdd}>+ Add</button>
 
                             {/* User info + sign out */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <div style={{ width: 34, height: 34, borderRadius: 12, background: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14 }}>
-                                    {(user?.user_metadata?.full_name || user?.email || "?")[0].toUpperCase()}
+                            <div className="user-info-wrap" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <div style={{ width: 34, height: 34, borderRadius: 12, background: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14 }}>
+                                        {(user?.user_metadata?.full_name || user?.email || "?")[0].toUpperCase()}
+                                    </div>
+                                    <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 1 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1e1b4b" }}>{user?.user_metadata?.full_name || "User"}</span>
+                                        <span style={{ fontSize: 10, color: "#a5b4fc" }}>{user?.email}</span>
+                                    </div>
                                 </div>
-                                <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 1 }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1e1b4b" }}>{user?.user_metadata?.full_name || "User"}</span>
-                                    <span style={{ fontSize: 10, color: "#a5b4fc" }}>{user?.email}</span>
-                                </div>
-                                <button className="signout-btn" onClick={handleSignOut} title="Sign out" style={{ marginLeft: 4 }}>
+                                <button className="signout-btn" onClick={handleSignOut} title="Sign out" style={{ marginLeft: "auto" }}>
                                     👋 Sign Out
                                 </button>
                             </div>
@@ -552,7 +582,7 @@ export default function BoardPage() {
                     </div>
 
                     {/* Stats row */}
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <div className="stats-row">
                         {COLUMNS.map(col => (
                             <div key={col.id} className="stat-pill" style={{ borderColor: `${col.color}20` }}>
                                 <span style={{ width: 24, height: 24, borderRadius: 8, background: col.pastel, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{col.emoji}</span>
@@ -560,7 +590,7 @@ export default function BoardPage() {
                                 <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: col.color }}>{statMap[col.id]}</span>
                             </div>
                         ))}
-                        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                        <div className="stats-right">
                             <div className="stat-pill" style={{ borderColor: "rgba(16,185,129,0.2)", background: "rgba(16,185,129,0.06)" }}>
                                 <span style={{ fontSize: 16 }}>📊</span>
                                 <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>Response Rate</span>
