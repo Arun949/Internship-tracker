@@ -216,7 +216,7 @@ export default function AuthPage() {
                 <input
                   className="auth-input"
                   type="text" required
-                  placeholder="Arun Kumar"
+                  placeholder="Your full name"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   autoComplete="name"
@@ -254,16 +254,8 @@ export default function AuthPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="divider" style={{ margin: "16px 0" }}>or</div>
-
-          {/* Magic Link */}
-          <button className="magic-btn" onClick={handleMagicLink} disabled={loading}>
-            ✨ Send Magic Link (no password)
-          </button>
-
           {/* Switch mode */}
-          <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+          <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "#94a3b8" }}>
             {isSignIn ? "Don't have an account? " : "Already have an account? "}
             <button
               className="auth-toggle"
