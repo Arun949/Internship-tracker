@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useAuth } from "./src/AuthContext";
 import AuthPage from "./src/pages/AuthPage";
 import BoardPage from "./src/pages/BoardPage";
+import AdminPage from "./src/pages/AdminPage";
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
+  const [currentView, setCurrentView] = useState("board"); // "board" or "admin"
 
   if (loading) {
     return (
@@ -18,6 +21,13 @@ export default function App() {
   }
 
   // If no user is logged in, show the login/signup page.
-  // Otherwise, show the main Kanban board connected to Supabase.
-  return !user ? <AuthPage /> : <BoardPage />;
+  if (!user) return <AuthPage />;
+
+  // Admin routing
+  if (currentView === "admin" && isAdmin) {
+      return <AdminPage onBack={() => setCurrentView("board")} />;
+  }
+
+  // Otherwise, show the main Kanban board
+  return <BoardPage onOpenAdmin={() => setCurrentView("admin")} />;
 }

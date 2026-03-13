@@ -413,8 +413,8 @@ function Toast({ message, onDone }) {
 }
 
 /* ─── MAIN BOARD PAGE ─── */
-export default function BoardPage() {
-    const { user, signOut } = useAuth();
+export default function BoardPage({ onOpenAdmin }) {
+    const { user, signOut, isAdmin } = useAuth();
 
     const [cards, setCards] = useState([]);
     const [loadingCards, setLoadingCards] = useState(true);
@@ -625,6 +625,20 @@ export default function BoardPage() {
 
                             <input className="search-input" placeholder="🔍  Search company, role or city…" value={search} onChange={e => setSearch(e.target.value)} />
                             <button className="add-btn" onClick={openAdd}>+ Add</button>
+
+                            {isAdmin && (
+                                <button
+                                    onClick={onOpenAdmin}
+                                    style={{
+                                        background: "#1e293b", color: "#fff", border: "none", borderRadius: 12,
+                                        padding: "10px 18px", fontWeight: 700, cursor: "pointer",
+                                        fontFamily: "'Syne', sans-serif", fontSize: 14, whiteSpace: "nowrap",
+                                        boxShadow: "0 4px 16px rgba(30,39,59,0.25)"
+                                    }}
+                                >
+                                    🛡️ Admin Dashboard
+                                </button>
+                            )}
 
                             {/* User info + sign out */}
                             <div className="user-info-wrap" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>

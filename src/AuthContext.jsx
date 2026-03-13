@@ -7,17 +7,36 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const [isAdmin, setIsAdmin] = useState(false);
+
     useEffect(() => {
+        const fetchProfile = async (sessionUser) => {
+            if (!sessionUser) {
+                setIsAdmin(false);
+                return;
+            }
+            const { data } = await supabase
+                .from('profiles')
+                .select('is_admin')
+                .eq('id', sessionUser.id)
+                .single();
+            
+            setIsAdmin(data?.is_admin || false);
+        };
+
         // Get current session on mount
         supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
-            setLoading(false);
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            fetchProfile(currentUser).finally(() => setLoading(false));
         });
 
         // Listen for auth changes (login, logout, token refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => {
-                setUser(session?.user ?? null);
+            async (_event, session) => {
+                const currentUser = session?.user ?? null;
+                setUser(currentUser);
+                await fetchProfile(currentUser);
                 setLoading(false);
             }
         );
@@ -41,7 +60,7 @@ export function AuthProvider({ children }) {
     const signOut = () => supabase.auth.signOut();
 
     return (
-        <AuthContext.Provider value={{ user, loading, signUp, signIn, signInWithMagicLink, signOut }}>
+        <AuthContext.Provider value={{ user, loading, isAdmin, signUp, signIn, signInWithMagicLink, signOut }}>
             {children}
         </AuthContext.Provider>
     );
