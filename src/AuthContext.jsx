@@ -34,10 +34,19 @@ export function AuthProvider({ children }) {
         // Listen for auth changes (login, logout, token refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
-                const currentUser = session?.user ?? null;
-                setUser(currentUser);
-                await fetchProfile(currentUser);
-                setLoading(false);
+                try {
+                    const currentUser = session?.user ?? null;
+                    setUser(currentUser);
+                    if (currentUser) {
+                        await fetchProfile(currentUser);
+                    } else {
+                        setIsAdmin(false);
+                    }
+                } catch (error) {
+                    console.error("Auth change error:", error);
+                } finally {
+                    setLoading(false);
+                }
             }
         );
 
