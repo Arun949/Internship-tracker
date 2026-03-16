@@ -71,8 +71,8 @@ export default function App() {
         <style>{LOADING_CSS}</style>
         <div className="splash-bg">
           <div className="splash-logo">🎓</div>
-          <div className="splash-title">InternTrack</div>
-          <div className="splash-sub">Your Internship Command Center</div>
+          <div className="splash-title">JobTrack</div>
+          <div className="splash-sub">Your Job Command Center</div>
           <div className="spinner-track" />
         </div>
       </>

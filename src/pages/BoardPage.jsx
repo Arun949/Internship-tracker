@@ -537,7 +537,7 @@ export default function BoardPage({ onOpenAdmin }) {
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url;
-        a.download = `interntrack-export-${new Date().toISOString().slice(0,10)}.csv`;
+        a.download = `jobtrack-export-${new Date().toISOString().slice(0,10)}.csv`;
         a.click(); URL.revokeObjectURL(url);
         showToast("📥 Exported to CSV!");
     }, [cards]);
@@ -680,8 +680,8 @@ export default function BoardPage({ onOpenAdmin }) {
                         <div className="header-logo-wrap" style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <div style={{ width: 44, height: 44, borderRadius: 14, background: "linear-gradient(135deg,#635bff 0%,#818cf8 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 4px 14px rgba(99,91,255,0.3)" }}>🎓</div>
                             <div>
-                                <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 24, color: "#1e1b4b", letterSpacing: "-0.5px" }}>InternTrack</div>
-                                <div style={{ fontSize: 12, color: "#a5b4fc", marginTop: 1, fontWeight: 500 }}>Your Internship Command Center</div>
+                                <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 24, color: "#1e1b4b", letterSpacing: "-0.5px" }}>JobTrack</div>
+                                <div style={{ fontSize: 12, color: "#a5b4fc", marginTop: 1, fontWeight: 500 }}>Your Job Command Center</div>
                             </div>
                         </div>
 

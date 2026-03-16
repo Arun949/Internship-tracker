@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "../internship-tracker_1.jsx";
+import App from "../job-tracker.jsx";
 import { AuthProvider } from "./AuthContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(

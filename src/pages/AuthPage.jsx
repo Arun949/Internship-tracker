@@ -195,7 +195,7 @@ export default function AuthPage() {
               fontSize: 28, boxShadow: "0 8px 24px rgba(99,91,255,0.35)"
             }}>🎓</div>
             <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 26, color: "#1e1b4b", letterSpacing: "-0.5px" }}>
-              InternTrack
+              JobTrack
             </div>
             <div style={{ fontSize: 13, color: "#a5b4fc", marginTop: 4, fontWeight: 500 }}>
               {isSignIn ? "Welcome back! Sign in to continue." : "Create your free account."}
