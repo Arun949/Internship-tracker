@@ -29,11 +29,13 @@ export function AuthProvider({ children }) {
         // Use onAuthStateChange ONLY — it fires INITIAL_SESSION immediately on mount,
         // which avoids the race condition between getSession() + onAuthStateChange.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
+            (_event, session) => {
                 const currentUser = session?.user ?? null;
                 setUser(currentUser);
-                await fetchProfile(currentUser);
+                // Show board immediately — don't wait for profile fetch
                 setLoading(false);
+                // Load admin flag in background (no await)
+                fetchProfile(currentUser);
             }
         );
 
