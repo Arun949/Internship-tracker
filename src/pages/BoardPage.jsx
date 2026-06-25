@@ -221,6 +221,7 @@ const COLUMNS = [
 const EMPTY_FORM = { company: "", role: "", location: "", deadline: "", salary: "", notes: "", status: "saved", resume_url: "", job_link: "" };
 const LOGO_COLORS = ["#635bff", "#3b82f6", "#f59e0b", "#10b981", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16", "#f97316"];
 const logoColor = (n) => LOGO_COLORS[(n?.charCodeAt(0) || 65) % LOGO_COLORS.length];
+const ATTACHMENT_LABELS = ["Resume", "Cover Letter", "Other Document"];
 
 /* ─── UTILS ─── */
 function formatDate(d) {
@@ -287,20 +288,38 @@ function Card({ card, col, onEdit, onDelete, onDragStart, dragging }) {
                 {card.salary && <span className="tag" style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>💰 {card.salary}</span>}
                 {card.deadline && <DeadlineBadge deadline={card.deadline} />}
             </div>
-            {(card.resume_url || card.job_link) && (
-                <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                    {card.resume_url && (
-                        <a href={card.resume_url} target="_blank" rel="noopener noreferrer" className="tag" style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }} onClick={e => e.stopPropagation()}>
-                            📄 Resume
-                        </a>
-                    )}
-                    {card.job_link && (
-                        <a href={card.job_link} target="_blank" rel="noopener noreferrer" className="tag" style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }} onClick={e => e.stopPropagation()}>
-                            🔗 Job Link
-                        </a>
-                    )}
-                </div>
-            )}
+            {(() => {
+                const atts = card.attachments?.length > 0
+                    ? card.attachments
+                    : card.resume_url ? [{ label: "Resume", url: card.resume_url }] : [];
+                return atts.length > 0 ? (
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                        {atts.map((att, i) => (
+                            <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="tag"
+                                style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }}
+                                onClick={e => e.stopPropagation()}>
+                                📄 {att.label}
+                            </a>
+                        ))}
+                    </div>
+                ) : null;
+            })()}
+            {(() => {
+                const links = card.job_links?.length > 0
+                    ? card.job_links
+                    : card.job_link ? [card.job_link] : [];
+                return links.length > 0 ? (
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                        {links.map((link, i) => (
+                            <a key={i} href={link} target="_blank" rel="noopener noreferrer" className="tag"
+                                style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }}
+                                onClick={e => e.stopPropagation()}>
+                                🔗 {links.length > 1 ? `Link ${i + 1}` : "Job Link"}
+                            </a>
+                        ))}
+                    </div>
+                ) : null;
+            })()}
             {card.deadline && <div style={{ fontSize: 10, color: "#a5b4fc", fontWeight: 600, marginBottom: 5 }}>📅 {formatDate(card.deadline)}</div>}
             {card.notes && (
                 <div style={{ fontSize: 11.5, color: "#6b7280", borderTop: "1px solid #f3f4f6", paddingTop: 7, marginTop: 3, lineHeight: 1.6, fontStyle: "italic" }}>
@@ -328,23 +347,45 @@ function FormField({ label, value, onChange, placeholder, type = "text", isTexta
     );
 }
 
-function Modal({ form, setForm, onSave, onClose, isEdit, saving, setResumeFile }) {
+function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots, setAttachmentSlots, jobLinks, setJobLinks }) {
     const f = key => e => setForm(p => ({ ...p, [key]: e.target.value }));
-    const fileInputRef = useRef(null);
-    const [fileName, setFileName] = useState("");
-    
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            setResumeFile(e.target.files[0]);
-            setFileName(e.target.files[0].name);
-        }
-    };
-
+    const fileInputRefs = useRef({});
     const col = COLUMNS.find(c => c.id === form.status) || COLUMNS[0];
+
+    const addSlot = () => {
+        if (attachmentSlots.length >= 3) return;
+        const used = attachmentSlots.map(s => s.label);
+        const next = ATTACHMENT_LABELS.find(l => !used.includes(l)) || "Other Document";
+        setAttachmentSlots(prev => [...prev, { label: next, existingUrl: "", file: null }]);
+    };
+    const removeSlot = (i) => setAttachmentSlots(prev => prev.filter((_, idx) => idx !== i));
+    const updateSlotLabel = (i, label) => setAttachmentSlots(prev => prev.map((s, idx) => idx === i ? { ...s, label } : s));
+    const handleSlotFile = (i, file) => setAttachmentSlots(prev => prev.map((s, idx) => idx === i ? { ...s, file, existingUrl: "" } : s));
+
+    const addLink = () => setJobLinks(prev => [...prev, ""]);
+    const removeLink = (i) => setJobLinks(prev => prev.filter((_, idx) => idx !== i));
+    const updateLink = (i, val) => setJobLinks(prev => prev.map((l, idx) => idx === i ? val : l));
+
+    const removeBtn = (onClick) => (
+        <button type="button" onClick={onClick} style={{
+            background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 8,
+            width: 28, height: 28, cursor: "pointer", fontSize: 13, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+        }}>✕</button>
+    );
+
+    const addBtn = (onClick, label) => (
+        <button type="button" onClick={onClick} style={{
+            background: "#ede9fe", border: "none", borderRadius: 8,
+            padding: "4px 10px", fontSize: 12, fontWeight: 700,
+            color: "#635bff", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+        }}>+ {label}</button>
+    );
 
     const modalContent = (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
             <div className="modal-box">
+                {/* Header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -361,43 +402,82 @@ function Modal({ form, setForm, onSave, onClose, isEdit, saving, setResumeFile }
                     </div>
                     <button onClick={onClose} className="btn-icon" style={{ width: 32, height: 32, fontSize: 15 }}>✕</button>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
                     <div style={{ gridColumn: "1/-1" }}><FormField label="Company *" value={form.company} onChange={f("company")} placeholder="e.g. Airbus" /></div>
                     <div style={{ gridColumn: "1/-1" }}><FormField label="Role *" value={form.role} onChange={f("role")} placeholder="e.g. Data Engineer Intern" /></div>
                     <FormField label="Location" value={form.location} onChange={f("location")} placeholder="Paris, France" />
                     <FormField label="Salary / Stipend" value={form.salary} onChange={f("salary")} placeholder="1200€/mo" />
-                    <div style={{ marginBottom: 14 }}>
-                        <label className="label">Upload Resume (PDF/Doc)</label>
-                        {/* Hidden native file input — no 'No file chosen' text shown */}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf,.doc,.docx"
-                            onChange={handleFileChange}
-                            style={{ display: "none" }}
-                        />
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="input-field"
-                            style={{
-                                background: "#f8f7ff", cursor: "pointer",
-                                display: "flex", alignItems: "center", gap: 8,
-                                color: fileName ? "#1e1b4b" : "#a5b4fc",
-                                userSelect: "none",
-                            }}
-                        >
-                            <span style={{ fontSize: 14 }}>📎</span>
-                            <span style={{ fontSize: 13 }}>
-                                {fileName || (isEdit && form.resume_url ? "Click to replace resume" : "Choose file (PDF / DOC)")}
-                            </span>
+
+                    {/* ── Documents (multi-upload) ── */}
+                    <div style={{ gridColumn: "1/-1", marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <label className="label" style={{ margin: 0 }}>Documents (PDF / DOC)</label>
+                            {attachmentSlots.length < 3 && addBtn(addSlot, "Add Document")}
                         </div>
-                        {!fileName && form.resume_url && (
-                            <div style={{ fontSize: 11, color: "#a5b4fc", marginTop: 4 }}>
-                                {isEdit ? "Existing file attached. Click above to replace." : "Using uploaded file"}
+                        {attachmentSlots.map((slot, i) => (
+                            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                                <select
+                                    value={slot.label}
+                                    onChange={e => updateSlotLabel(i, e.target.value)}
+                                    className="input-field"
+                                    style={{ width: 148, flexShrink: 0, appearance: "auto", cursor: "pointer", fontSize: 12 }}
+                                >
+                                    {ATTACHMENT_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                                <input
+                                    ref={el => fileInputRefs.current[i] = el}
+                                    type="file" accept=".pdf,.doc,.docx"
+                                    onChange={e => e.target.files?.[0] && handleSlotFile(i, e.target.files[0])}
+                                    style={{ display: "none" }}
+                                />
+                                <div
+                                    onClick={() => fileInputRefs.current[i]?.click()}
+                                    className="input-field"
+                                    style={{
+                                        flex: 1, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                                        color: (slot.file || slot.existingUrl) ? "#1e1b4b" : "#a5b4fc",
+                                        userSelect: "none", fontSize: 12, overflow: "hidden",
+                                    }}
+                                >
+                                    <span style={{ flexShrink: 0 }}>📎</span>
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {slot.file
+                                            ? slot.file.name
+                                            : slot.existingUrl
+                                                ? "Click to replace file"
+                                                : "Choose file (PDF / DOC)"}
+                                    </span>
+                                </div>
+                                {attachmentSlots.length > 1 && removeBtn(() => removeSlot(i))}
                             </div>
-                        )}
+                        ))}
+                        <div style={{ fontSize: 11, color: "#a5b4fc", marginTop: 2 }}>
+                            Add up to 3 documents — e.g. Resume, Cover Letter, Portfolio
+                        </div>
                     </div>
-                    <FormField label="Job Link" value={form.job_link} onChange={f("job_link")} placeholder="https://linkedin.com/jobs/..." type="url" />
+
+                    {/* ── Job Links (multi-link) ── */}
+                    <div style={{ gridColumn: "1/-1", marginBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <label className="label" style={{ margin: 0 }}>Job Links</label>
+                            {addBtn(addLink, "Add Link")}
+                        </div>
+                        {jobLinks.map((link, i) => (
+                            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                                <input
+                                    className="input-field"
+                                    type="url"
+                                    value={link}
+                                    onChange={e => updateLink(i, e.target.value)}
+                                    placeholder="https://linkedin.com/jobs/..."
+                                    style={{ flex: 1 }}
+                                />
+                                {jobLinks.length > 1 && removeBtn(() => removeLink(i))}
+                            </div>
+                        ))}
+                    </div>
+
                     <FormField label="Deadline" value={form.deadline} onChange={f("deadline")} type="date" />
                     <div style={{ marginBottom: 14 }}>
                         <label className="label">Status</label>
@@ -407,6 +487,7 @@ function Modal({ form, setForm, onSave, onClose, isEdit, saving, setResumeFile }
                     </div>
                     <div style={{ gridColumn: "1/-1" }}><FormField label="Notes" value={form.notes} onChange={f("notes")} placeholder="Any extra details…" isTextarea /></div>
                 </div>
+
                 <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
                     <button className="cancel-btn" onClick={onClose}>Cancel</button>
                     <button className="save-btn" onClick={onSave} disabled={!form.company || !form.role || saving}>
@@ -468,7 +549,8 @@ export default function BoardPage({ onOpenAdmin }) {
     const [filterStatus, setFilterStatus] = useState(null); // null = show all
     const [sortBy, setSortBy] = useState("newest"); // "newest" | "deadline" | "company"
 
-    const [resumeFile, setResumeFile] = useState(null);
+    const [attachmentSlots, setAttachmentSlots] = useState([{ label: "Resume", existingUrl: "", file: null }]);
+    const [jobLinks, setJobLinks] = useState([""]);
 
     const styleRef = useRef(null);
 
@@ -572,43 +654,59 @@ export default function BoardPage({ onOpenAdmin }) {
     const visibleColumns = filterStatus ? COLUMNS.filter(c => c.id === filterStatus) : COLUMNS;
 
     /* ── Open modal helpers ── */
-    const openAdd = useCallback(() => { setForm(EMPTY_FORM); setEditCard(null); setResumeFile(null); setShowModal(true); }, []);
-    const openEdit = useCallback((card) => { setForm({ ...card, deadline: card.deadline || "" }); setEditCard(card.id); setResumeFile(null); setShowModal(true); }, []);
+    const openAdd = useCallback(() => {
+        setForm(EMPTY_FORM);
+        setEditCard(null);
+        setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]);
+        setJobLinks([""]);
+        setShowModal(true);
+    }, []);
+
+    const openEdit = useCallback((card) => {
+        setForm({ ...card, deadline: card.deadline || "" });
+        setEditCard(card.id);
+        const existingAtts = card.attachments?.length > 0
+            ? card.attachments.map(a => ({ label: a.label, existingUrl: a.url, file: null }))
+            : card.resume_url
+                ? [{ label: "Resume", existingUrl: card.resume_url, file: null }]
+                : [{ label: "Resume", existingUrl: "", file: null }];
+        setAttachmentSlots(existingAtts);
+        const existingLinks = card.job_links?.length > 0
+            ? card.job_links
+            : card.job_link ? [card.job_link] : [""];
+        setJobLinks(existingLinks);
+        setShowModal(true);
+    }, []);
     const showToast = (msg) => setToast(msg);
 
     /* ── CRUD: Save ── */
     const handleSave = async () => {
         if (!form.company.trim() || !form.role.trim()) return;
         setSaving(true);
-        
-        let finalResumeUrl = form.resume_url;
 
-        // If user selected a new file, upload it
-        if (resumeFile) {
-            const fileExt = resumeFile.name.split('.').pop();
-            const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-            
-            const { error: uploadError, data: uploadData } = await supabase.storage
-                .from('resumes')
-                .upload(fileName, resumeFile, { upsert: true });
-
-            if (uploadError) {
-                console.error("Resume upload error:", uploadError);
-                showToast("❌ Upload Failed: " + uploadError.message);
-                setSaving(false);
-                return;
-            }
-
-            // Get public URL
-            const { data } = supabase.storage.from('resumes').getPublicUrl(fileName);
-            // Ensure data.publicUrl is valid
-            if (data && data.publicUrl) {
-                finalResumeUrl = data.publicUrl;
-            } else {
-                console.error("Could not retrieve public URL:", data);
-                showToast("⚠️ Upload succeeded but couldn't get link");
+        // Upload any new files in attachment slots
+        const finalAttachments = [];
+        for (let i = 0; i < attachmentSlots.length; i++) {
+            const slot = attachmentSlots[i];
+            if (slot.file) {
+                const ext = slot.file.name.split(".").pop();
+                const fileName = `${user.id}-${slot.label.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}-${i}.${ext}`;
+                const { error: uploadError } = await supabase.storage
+                    .from("resumes")
+                    .upload(fileName, slot.file, { upsert: true });
+                if (uploadError) {
+                    showToast("❌ Upload failed: " + uploadError.message);
+                    setSaving(false);
+                    return;
+                }
+                const { data } = supabase.storage.from("resumes").getPublicUrl(fileName);
+                if (data?.publicUrl) finalAttachments.push({ label: slot.label, url: data.publicUrl });
+            } else if (slot.existingUrl) {
+                finalAttachments.push({ label: slot.label, url: slot.existingUrl });
             }
         }
+
+        const finalJobLinks = jobLinks.filter(l => l.trim());
 
         const logo = form.company[0].toUpperCase();
         const payload = {
@@ -619,26 +717,26 @@ export default function BoardPage({ onOpenAdmin }) {
             salary: form.salary || null,
             notes: form.notes || null,
             status: form.status,
-            resume_url: finalResumeUrl || null,
-            job_link: form.job_link || null,
+            attachments: finalAttachments,
+            job_links: finalJobLinks,
+            resume_url: finalAttachments.find(a => a.label === "Resume")?.url || null,
+            job_link: finalJobLinks[0] || null,
             logo,
             user_id: user.id,
         };
 
         if (editCard) {
-            const { error } = await supabase
-                .from("internship_cards")
-                .update(payload)
-                .eq("id", editCard);
-            if (!error) showToast("✅ Application updated!");
+            const { error } = await supabase.from("internship_cards").update(payload).eq("id", editCard);
+            if (error) { showToast("❌ Error: " + error.message); setSaving(false); return; }
+            showToast("✅ Application updated!");
         } else {
-            const { error } = await supabase
-                .from("internship_cards")
-                .insert([payload]);
-            if (!error) showToast("🎉 Application added!");
+            const { error } = await supabase.from("internship_cards").insert([payload]);
+            if (error) { showToast("❌ Error: " + error.message); setSaving(false); return; }
+            showToast("🎉 Application added!");
         }
         setSaving(false);
-        setResumeFile(null);
+        setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]);
+        setJobLinks([""]);
         setShowModal(false);
     };
 
@@ -869,7 +967,7 @@ export default function BoardPage({ onOpenAdmin }) {
 
                                     <button className="quick-add-btn"
                                         style={{ borderColor: col.border }}
-                                        onClick={() => { setForm({ ...EMPTY_FORM, status: col.id }); setEditCard(null); setShowModal(true); }}
+                                        onClick={() => { setForm({ ...EMPTY_FORM, status: col.id }); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setShowModal(true); }}
                                         onMouseEnter={e => { e.currentTarget.style.background = col.pastel; e.currentTarget.style.color = col.text; e.currentTarget.style.borderColor = col.color + "60"; }}
                                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#a5b4fc"; e.currentTarget.style.borderColor = "#c7d2fe"; }}
                                     >
@@ -889,7 +987,13 @@ export default function BoardPage({ onOpenAdmin }) {
 
             {/* MODALS */}
             {showModal && (
-                <Modal form={form} setForm={setForm} onSave={handleSave} onClose={() => setShowModal(false)} isEdit={editCard !== null} saving={saving} setResumeFile={setResumeFile} />
+                <Modal
+                    form={form} setForm={setForm}
+                    onSave={handleSave} onClose={() => setShowModal(false)}
+                    isEdit={editCard !== null} saving={saving}
+                    attachmentSlots={attachmentSlots} setAttachmentSlots={setAttachmentSlots}
+                    jobLinks={jobLinks} setJobLinks={setJobLinks}
+                />
             )}
             {deleteTarget && (
                 <DeleteConfirm card={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} saving={saving} />
