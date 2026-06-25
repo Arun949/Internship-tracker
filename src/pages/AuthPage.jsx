@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../AuthContext";
 
 const CSS = `
@@ -130,15 +130,40 @@ const CSS = `
     .auth-card { padding: 30px 24px; border-radius: 20px; }
     .auth-btn { font-size: 14px; padding: 12px; }
   }
+
+  /* Dark mode overrides for auth page */
+  [data-theme="dark"] .auth-bg {
+    background:
+      radial-gradient(ellipse 80% 55% at 5% -5%,  rgba(99,91,255,0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 45% at 95% 5%,  rgba(30,80,255,0.1) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 60% at 50% 105%, rgba(99,91,255,0.08) 0%, transparent 55%),
+      #0d0d1a;
+  }
+  [data-theme="dark"] .auth-card {
+    background: rgba(26,24,48,0.88);
+    border-color: rgba(99,91,255,0.2);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4), 0 2px 12px rgba(0,0,0,0.2);
+  }
+  [data-theme="dark"] .auth-input {
+    background: #13111f; border-color: rgba(99,91,255,0.25); color: #e8e6ff;
+  }
+  [data-theme="dark"] .auth-input:focus {
+    border-color: #818cf8; background: #1a1830;
+  }
+  [data-theme="dark"] .magic-btn {
+    border-color: rgba(99,91,255,0.25); color: #818cf8;
+  }
+  [data-theme="dark"] .magic-btn:hover { background: rgba(99,91,255,0.15); border-color: #818cf8; }
+  [data-theme="dark"] .error-box { background: #2d0a0f; border-color: #7f1d1d; color: #fca5a5; }
+  [data-theme="dark"] .success-box { background: #052e16; border-color: #14532d; color: #86efac; }
+  [data-theme="dark"] .feature-chip { background: rgba(99,91,255,0.12); border-color: rgba(99,91,255,0.2); color: #a5b4fc; }
 `;
 
-function StyleInjector({ css }) {
-  const { useEffect } = require !== undefined ? { useEffect: null } : {};
-  // inject inline via <style> rendered in JSX instead
-  return <style>{css}</style>;
-}
-
 export default function AuthPage() {
+  useEffect(() => {
+    const dark = localStorage.getItem("jt-dark") === "1";
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  }, []);
   const { signIn, signUp, signInWithMagicLink } = useAuth();
 
   const [mode, setMode] = useState("signin"); // "signin" | "signup"

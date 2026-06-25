@@ -207,6 +207,50 @@ const GLOBAL_CSS = `
     .modal-box { padding: 24px; border-radius: 20px; }
     .delete-box { padding: 24px; border-radius: 20px; }
   }
+
+  /* ── Dark Mode overrides ── */
+  [data-theme="dark"] body { color: #e8e6ff; }
+  [data-theme="dark"] .app-bg {
+    background:
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(99,91,255,0.13) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 0%,   rgba(30,80,255,0.08) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 60% at 50% 100%, rgba(99,91,255,0.07) 0%, transparent 60%),
+      #0d0d1a;
+  }
+  [data-theme="dark"] .card {
+    background: #1a1830;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 1px rgba(99,91,255,0.1);
+  }
+  [data-theme="dark"] .card:hover {
+    box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 0 1.5px rgba(99,91,255,0.22);
+  }
+  [data-theme="dark"] .modal-box,
+  [data-theme="dark"] .delete-box { background: #1a1830; }
+  [data-theme="dark"] .modal-overlay,
+  [data-theme="dark"] .delete-overlay { background: rgba(4,4,14,0.65); }
+  [data-theme="dark"] .input-field {
+    background: #13111f; border-color: rgba(99,91,255,0.25); color: #e8e6ff;
+  }
+  [data-theme="dark"] .input-field:focus { border-color: #818cf8; background: #1a1830; }
+  [data-theme="dark"] .search-input {
+    background: rgba(26,24,48,0.8); border-color: rgba(99,91,255,0.2); color: #e8e6ff;
+  }
+  [data-theme="dark"] .search-input:focus { background: #1a1830; }
+  [data-theme="dark"] .stat-pill { background: rgba(26,24,48,0.85); border-color: rgba(99,91,255,0.15); }
+  [data-theme="dark"] .signout-btn { background: #13111f; border-color: rgba(99,91,255,0.25); color: #818cf8; }
+  [data-theme="dark"] .signout-btn:hover { background: rgba(99,91,255,0.15); border-color: rgba(99,91,255,0.4); }
+  [data-theme="dark"] .btn-icon { background: #1a1830; border-color: rgba(99,91,255,0.2); }
+  [data-theme="dark"] .btn-icon:hover { background: rgba(99,91,255,0.2); }
+  [data-theme="dark"] .quick-add-btn { color: rgba(165,180,252,0.55); border-color: rgba(99,91,255,0.18); }
+  [data-theme="dark"] .quick-add-btn:hover { background: rgba(99,91,255,0.12); color: #818cf8; border-color: rgba(99,91,255,0.4); }
+  [data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, #1a1830 25%, #201d42 50%, #1a1830 75%);
+    background-size: 200% 100%;
+  }
+  [data-theme="dark"] .cancel-btn { border-color: rgba(99,91,255,0.25); background: #13111f; color: #818cf8; }
+  [data-theme="dark"] .cancel-btn:hover { background: rgba(99,91,255,0.15); border-color: rgba(99,91,255,0.4); }
+  [data-theme="dark"] ::-webkit-scrollbar-thumb { background: rgba(99,91,255,0.3); }
+  [data-theme="dark"] select option { background: #1a1830; color: #e8e6ff; }
 `;
 
 /* ─── CONSTANTS ─── */
@@ -218,10 +262,21 @@ const COLUMNS = [
     { id: "rejected", label: "Rejected", emoji: "✖", color: "#F43F5E", pastel: "#ffe4e6", text: "#9f1239", border: "#fecdd3" },
 ];
 
-const EMPTY_FORM = { company: "", role: "", location: "", deadline: "", salary: "", notes: "", status: "saved", resume_url: "", job_link: "" };
+const EMPTY_FORM = { company: "", role: "", location: "", deadline: "", salary: "", notes: "", status: "saved", resume_url: "", job_link: "", tags: [] };
 const LOGO_COLORS = ["#635bff", "#3b82f6", "#f59e0b", "#10b981", "#f43f5e", "#ec4899", "#06b6d4", "#84cc16", "#f97316"];
 const logoColor = (n) => LOGO_COLORS[(n?.charCodeAt(0) || 65) % LOGO_COLORS.length];
 const ATTACHMENT_LABELS = ["Resume", "Cover Letter", "Other Document"];
+const PRESET_TAGS = [
+    { label: "Remote",    color: "#10b981" },
+    { label: "Hybrid",    color: "#3b82f6" },
+    { label: "On-site",   color: "#8b5cf6" },
+    { label: "Dream Job", color: "#f59e0b" },
+    { label: "Urgent",    color: "#ef4444" },
+    { label: "Referral",  color: "#06b6d4" },
+    { label: "Startup",   color: "#ec4899" },
+    { label: "Part-time", color: "#84cc16" },
+];
+const tagColor = (label) => PRESET_TAGS.find(p => p.label === label)?.color ?? "#6366f1";
 
 /* ─── UTILS ─── */
 function formatDate(d) {
@@ -264,7 +319,8 @@ function DeadlineBadge({ deadline }) {
     );
 }
 
-function Card({ card, col, onEdit, onDelete, onDragStart, dragging }) {
+function Card({ card, col, onEdit, onDelete, onDragStart, dragging, T }) {
+    const divider = T.divider;
     return (
         <div
             className={`card${dragging ? " dragging" : ""}`}
@@ -275,7 +331,7 @@ function Card({ card, col, onEdit, onDelete, onDragStart, dragging }) {
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 9 }}>
                 <LogoBadge letter={card.logo || card.company?.[0]} name={card.company} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: "#1e1b4b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.company}</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.company}</div>
                     <div style={{ fontSize: 12, color: "#6366f1", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 500 }}>{card.role}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
@@ -283,51 +339,91 @@ function Card({ card, col, onEdit, onDelete, onDragStart, dragging }) {
                     <button className="btn-icon" onClick={e => { e.stopPropagation(); onDelete(card.id); }}>🗑</button>
                 </div>
             </div>
+
+            {/* Location / Salary / Deadline badges */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
                 {card.location && <span className="tag" style={{ background: "#f0f2ff", color: "#4f46e5", border: "1px solid #e0e7ff" }}>📍 {card.location}</span>}
                 {card.salary && <span className="tag" style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>💰 {card.salary}</span>}
                 {card.deadline && <DeadlineBadge deadline={card.deadline} />}
             </div>
+
+            {/* Tags */}
+            {card.tags?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                    {card.tags.map((tag, i) => {
+                        const c = tagColor(tag);
+                        return (
+                            <span key={i} className="tag" style={{ background: `${c}18`, color: c, border: `1px solid ${c}30`, fontSize: 10 }}>
+                                {tag}
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Attachments */}
             {(() => {
-                const atts = card.attachments?.length > 0
-                    ? card.attachments
-                    : card.resume_url ? [{ label: "Resume", url: card.resume_url }] : [];
+                const atts = card.attachments?.length > 0 ? card.attachments : card.resume_url ? [{ label: "Resume", url: card.resume_url }] : [];
                 return atts.length > 0 ? (
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
                         {atts.map((att, i) => (
                             <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="tag"
-                                style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }}
-                                onClick={e => e.stopPropagation()}>
-                                📄 {att.label}
-                            </a>
+                                style={{ background: T.tagBg, color: T.tagText, border: `1px solid ${T.tagBorder}`, textDecoration: "none" }}
+                                onClick={e => e.stopPropagation()}>📄 {att.label}</a>
                         ))}
                     </div>
                 ) : null;
             })()}
+
+            {/* Job links */}
             {(() => {
-                const links = card.job_links?.length > 0
-                    ? card.job_links
-                    : card.job_link ? [card.job_link] : [];
+                const links = card.job_links?.length > 0 ? card.job_links : card.job_link ? [card.job_link] : [];
                 return links.length > 0 ? (
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
                         {links.map((link, i) => (
                             <a key={i} href={link} target="_blank" rel="noopener noreferrer" className="tag"
-                                style={{ background: "#f8fafc", color: "#334155", border: "1px solid #e2e8f0", textDecoration: "none" }}
-                                onClick={e => e.stopPropagation()}>
-                                🔗 {links.length > 1 ? `Link ${i + 1}` : "Job Link"}
-                            </a>
+                                style={{ background: T.tagBg, color: T.tagText, border: `1px solid ${T.tagBorder}`, textDecoration: "none" }}
+                                onClick={e => e.stopPropagation()}>🔗 {links.length > 1 ? `Link ${i + 1}` : "Job Link"}</a>
                         ))}
                     </div>
                 ) : null;
             })()}
+
             {card.deadline && <div style={{ fontSize: 10, color: "#a5b4fc", fontWeight: 600, marginBottom: 5 }}>📅 {formatDate(card.deadline)}</div>}
+
             {card.notes && (
-                <div style={{ fontSize: 11.5, color: "#6b7280", borderTop: "1px solid #f3f4f6", paddingTop: 7, marginTop: 3, lineHeight: 1.6, fontStyle: "italic" }}>
+                <div style={{ fontSize: 11.5, color: T.textSec, borderTop: `1px solid ${divider}`, paddingTop: 7, marginTop: 3, lineHeight: 1.6, fontStyle: "italic" }}>
                     {card.notes.length > 90 ? card.notes.slice(0, 90) + "…" : card.notes}
                 </div>
             )}
+
+            {/* Status history timeline */}
+            {card.status_history?.length > 1 && (
+                <div style={{ marginTop: 7, paddingTop: 6, borderTop: `1px solid ${divider}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        {card.status_history.map((h, i) => {
+                            const hCol = COLUMNS.find(c => c.id === h.status);
+                            if (!hCol) return null;
+                            const dateStr = new Date(h.changed_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+                            return (
+                                <span key={i} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                    <span title={`${hCol.label}: ${dateStr}`}
+                                        style={{ width: 9, height: 9, borderRadius: "50%", background: hCol.color, flexShrink: 0, cursor: "help", display: "inline-block" }} />
+                                    {i < card.status_history.length - 1 &&
+                                        <span style={{ width: 10, height: 1, background: divider, display: "inline-block" }} />}
+                                </span>
+                            );
+                        })}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#a5b4fc", marginTop: 2, fontWeight: 600 }}>
+                        {card.status_history.length} status {card.status_history.length === 1 ? "state" : "moves"} · hover dots for dates
+                    </div>
+                </div>
+            )}
+
+            {/* Date added */}
             {card.created_at && (
-                <div style={{ fontSize: 10, color: "#c7d2fe", fontWeight: 500, marginTop: 8, paddingTop: 6, borderTop: "1px solid #f3f4f6" }}>
+                <div style={{ fontSize: 10, color: "#c7d2fe", fontWeight: 500, marginTop: 7, paddingTop: 6, borderTop: `1px solid ${divider}` }}>
                     🗓 Added {new Date(card.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                 </div>
             )}
@@ -347,10 +443,18 @@ function FormField({ label, value, onChange, placeholder, type = "text", isTexta
     );
 }
 
-function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots, setAttachmentSlots, jobLinks, setJobLinks }) {
+function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots, setAttachmentSlots, jobLinks, setJobLinks, T }) {
     const f = key => e => setForm(p => ({ ...p, [key]: e.target.value }));
     const fileInputRefs = useRef({});
+    const [customTag, setCustomTag] = useState("");
     const col = COLUMNS.find(c => c.id === form.status) || COLUMNS[0];
+
+    const addTag = (label) => {
+        if (!label.trim() || (form.tags || []).includes(label.trim())) return;
+        setForm(p => ({ ...p, tags: [...(p.tags || []), label.trim()] }));
+    };
+    const removeTag = (label) => setForm(p => ({ ...p, tags: (p.tags || []).filter(t => t !== label) }));
+    const addCustomTag = () => { addTag(customTag); setCustomTag(""); };
 
     const addSlot = () => {
         if (attachmentSlots.length >= 3) return;
@@ -392,7 +496,7 @@ function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots
                             <div style={{ width: 36, height: 36, borderRadius: 10, background: col.pastel, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
                                 {isEdit ? "✏️" : col.emoji}
                             </div>
-                            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: "#1e1b4b" }}>
+                            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: T.text }}>
                                 {isEdit ? "Edit Application" : "New Application"}
                             </span>
                         </div>
@@ -486,6 +590,59 @@ function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots
                         </select>
                     </div>
                     <div style={{ gridColumn: "1/-1" }}><FormField label="Notes" value={form.notes} onChange={f("notes")} placeholder="Any extra details…" isTextarea /></div>
+
+                    {/* ── Tags ── */}
+                    <div style={{ gridColumn: "1/-1", marginBottom: 6 }}>
+                        <label className="label" style={{ display: "block", marginBottom: 8 }}>Tags</label>
+
+                        {/* Active tags */}
+                        {(form.tags || []).length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+                                {(form.tags || []).map((tag, i) => {
+                                    const c = tagColor(tag);
+                                    return (
+                                        <span key={i} onClick={() => removeTag(tag)} style={{
+                                            display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer",
+                                            background: `${c}18`, color: c, border: `1px solid ${c}35`,
+                                            borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 600,
+                                        }}>
+                                            {tag} <span style={{ fontSize: 10, opacity: 0.7 }}>✕</span>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Preset suggestions */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+                            {PRESET_TAGS.filter(p => !(form.tags || []).includes(p.label)).map(p => (
+                                <span key={p.label} onClick={() => addTag(p.label)} style={{
+                                    display: "inline-flex", cursor: "pointer",
+                                    background: T.tagBg, color: T.tagText,
+                                    border: `1px solid ${T.tagBorder}`,
+                                    borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 600,
+                                    transition: "all 0.15s",
+                                }}>+ {p.label}</span>
+                            ))}
+                        </div>
+
+                        {/* Custom tag input */}
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <input
+                                className="input-field"
+                                placeholder="Custom tag…"
+                                value={customTag}
+                                onChange={e => setCustomTag(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
+                                style={{ flex: 1, fontSize: 12 }}
+                            />
+                            <button type="button" onClick={addCustomTag} style={{
+                                background: "linear-gradient(135deg,#635bff,#818cf8)", color: "#fff",
+                                border: "none", borderRadius: 10, padding: "0 16px", fontWeight: 700,
+                                fontSize: 13, cursor: "pointer", flexShrink: 0,
+                            }}>Add</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
@@ -551,6 +708,21 @@ export default function BoardPage({ onOpenAdmin }) {
 
     const [attachmentSlots, setAttachmentSlots] = useState([{ label: "Resume", existingUrl: "", file: null }]);
     const [jobLinks, setJobLinks] = useState([""]);
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem("jt-dark") === "1");
+
+    const T = {
+        text:      darkMode ? "#e8e6ff" : "#1e1b4b",
+        textSec:   darkMode ? "#9ca3af" : "#6b7280",
+        headerBg:  darkMode ? "rgba(13,13,26,0.9)"  : "rgba(255,255,255,0.72)",
+        colBg:     darkMode ? "rgba(26,24,48,0.55)"  : "rgba(255,255,255,0.4)",
+        colBorder: darkMode ? "rgba(99,91,255,0.13)" : "rgba(99,91,255,0.07)",
+        pillBg:    darkMode ? "rgba(26,24,48,0.85)"  : "rgba(255,255,255,0.8)",
+        divider:   darkMode ? "rgba(99,91,255,0.14)" : "#f3f4f6",
+        tagBg:     darkMode ? "#13111f"  : "#f8fafc",
+        tagText:   darkMode ? "#a5b4fc"  : "#334155",
+        tagBorder: darkMode ? "rgba(99,91,255,0.2)"  : "#e2e8f0",
+        sortBg:    darkMode ? "rgba(26,24,48,0.8)"   : "rgba(255,255,255,0.8)",
+    };
 
     const styleRef = useRef(null);
 
@@ -562,6 +734,12 @@ export default function BoardPage({ onOpenAdmin }) {
         styleRef.current = el;
         return () => el.remove();
     }, []);
+
+    /* Sync dark mode to <html> and localStorage */
+    useEffect(() => {
+        document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+        localStorage.setItem("jt-dark", darkMode ? "1" : "0");
+    }, [darkMode]);
 
     /* ── Load cards from Supabase ── */
     useEffect(() => {
@@ -606,7 +784,7 @@ export default function BoardPage({ onOpenAdmin }) {
             if (e.key === "Escape") { setShowModal(false); setDeleteTarget(null); }
             // Press 'N' to open Add modal (when not typing in an input)
             if (e.key === "n" && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA" && document.activeElement.tagName !== "SELECT") {
-                setForm(EMPTY_FORM); setEditCard(null); setResumeFile(null); setShowModal(true);
+                setForm(EMPTY_FORM); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setShowModal(true);
             }
         };
         window.addEventListener("keydown", fn);
@@ -663,7 +841,7 @@ export default function BoardPage({ onOpenAdmin }) {
     }, []);
 
     const openEdit = useCallback((card) => {
-        setForm({ ...card, deadline: card.deadline || "" });
+        setForm({ ...card, deadline: card.deadline || "", tags: card.tags || [] });
         setEditCard(card.id);
         const existingAtts = card.attachments?.length > 0
             ? card.attachments.map(a => ({ label: a.label, existingUrl: a.url, file: null }))
@@ -707,6 +885,20 @@ export default function BoardPage({ onOpenAdmin }) {
         }
 
         const finalJobLinks = jobLinks.filter(l => l.trim());
+        const now = new Date().toISOString();
+
+        // Build status_history
+        let statusHistory;
+        if (editCard) {
+            const existing = cards.find(c => c.id === editCard);
+            const prev = existing?.status_history || [];
+            const lastStatus = prev.length > 0 ? prev[prev.length - 1].status : null;
+            statusHistory = lastStatus !== form.status
+                ? [...prev, { status: form.status, changed_at: now }]
+                : prev;
+        } else {
+            statusHistory = [{ status: form.status, changed_at: now }];
+        }
 
         const logo = form.company[0].toUpperCase();
         const payload = {
@@ -721,6 +913,8 @@ export default function BoardPage({ onOpenAdmin }) {
             job_links: finalJobLinks,
             resume_url: finalAttachments.find(a => a.label === "Resume")?.url || null,
             job_link: finalJobLinks[0] || null,
+            tags: form.tags || [],
+            status_history: statusHistory,
             logo,
             user_id: user.id,
         };
@@ -755,10 +949,11 @@ export default function BoardPage({ onOpenAdmin }) {
         if (dragId === null) return;
         const card = cards.find(c => c.id === dragId);
         if (!card || card.status === colId) { setDragId(null); setDragOver(null); return; }
-        // Optimistic UI update
-        setCards(prev => prev.map(c => c.id === dragId ? { ...c, status: colId } : c));
+        const prevHistory = card.status_history || [{ status: card.status, changed_at: card.created_at || new Date().toISOString() }];
+        const newHistory = [...prevHistory, { status: colId, changed_at: new Date().toISOString() }];
+        setCards(prev => prev.map(c => c.id === dragId ? { ...c, status: colId, status_history: newHistory } : c));
         setDragId(null); setDragOver(null);
-        await supabase.from("internship_cards").update({ status: colId }).eq("id", card.id);
+        await supabase.from("internship_cards").update({ status: colId, status_history: newHistory }).eq("id", card.id);
     };
 
     /* ── Sign out ── */
@@ -771,7 +966,7 @@ export default function BoardPage({ onOpenAdmin }) {
 
             {/* HEADER */}
             <header style={{
-                background: "rgba(255,255,255,0.72)", backdropFilter: "blur(16px)",
+                background: T.headerBg, backdropFilter: "blur(16px)",
                 borderBottom: "1px solid rgba(99,91,255,0.08)",
                 padding: "22px 32px 18px", position: "sticky", top: 0, zIndex: 100,
                 boxShadow: "0 4px 24px rgba(99,91,255,0.07)",
@@ -783,7 +978,7 @@ export default function BoardPage({ onOpenAdmin }) {
                         <div className="header-logo-wrap" style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <div style={{ width: 44, height: 44, borderRadius: 14, background: "linear-gradient(135deg,#635bff 0%,#818cf8 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 4px 14px rgba(99,91,255,0.3)" }}>🎓</div>
                             <div>
-                                <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 24, color: "#1e1b4b", letterSpacing: "-0.5px" }}>JobTrack</div>
+                                <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 24, color: T.text, letterSpacing: "-0.5px" }}>JobTrack</div>
                                 <div style={{ fontSize: 12, color: "#a5b4fc", marginTop: 1, fontWeight: 500 }}>Your Job Command Center</div>
                             </div>
                         </div>
@@ -791,7 +986,7 @@ export default function BoardPage({ onOpenAdmin }) {
                         {/* Right controls */}
                         <div className="header-actions">
                             {/* Real-time indicator */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#6b7280", fontWeight: 500 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.textSec, fontWeight: 500 }}>
                                 <span className="realtime-dot" />
                                 Live
                             </div>
@@ -802,8 +997,8 @@ export default function BoardPage({ onOpenAdmin }) {
                             <select
                                 value={sortBy} onChange={e => setSortBy(e.target.value)}
                                 style={{
-                                    background: "rgba(255,255,255,0.8)", border: "1.5px solid rgba(99,91,255,0.15)",
-                                    borderRadius: 12, padding: "9px 12px", color: "#1e1b4b", fontSize: 13,
+                                    background: T.sortBg, border: "1.5px solid rgba(99,91,255,0.15)",
+                                    borderRadius: 12, padding: "9px 12px", color: T.text, fontSize: 13,
                                     fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none",
                                     cursor: "pointer", fontWeight: 600,
                                 }}
@@ -814,33 +1009,33 @@ export default function BoardPage({ onOpenAdmin }) {
                             </select>
 
                             {/* CSV Export */}
+                            <button onClick={exportCSV} title="Export to CSV" style={{
+                                background: T.sortBg, border: "1.5px solid rgba(99,91,255,0.15)",
+                                borderRadius: 12, padding: "9px 14px", fontWeight: 600, cursor: "pointer",
+                                fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: "#6366f1",
+                                whiteSpace: "nowrap", transition: "background 0.15s",
+                            }}>📥 Export</button>
+
+                            {/* Dark mode toggle */}
                             <button
-                                onClick={exportCSV}
-                                title="Export to CSV"
+                                onClick={() => setDarkMode(d => !d)}
+                                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
                                 style={{
-                                    background: "rgba(255,255,255,0.8)", border: "1.5px solid rgba(99,91,255,0.15)",
-                                    borderRadius: 12, padding: "9px 14px", fontWeight: 600, cursor: "pointer",
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: "#6366f1",
-                                    whiteSpace: "nowrap", transition: "background 0.15s",
+                                    background: T.sortBg, border: "1.5px solid rgba(99,91,255,0.15)",
+                                    borderRadius: 10, padding: "8px 12px", fontSize: 16,
+                                    cursor: "pointer", lineHeight: 1, transition: "all 0.2s",
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = "#ede9fe"}
-                                onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.8)"}
-                            >📥 Export</button>
+                            >{darkMode ? "☀️" : "🌙"}</button>
 
                             <button className="add-btn" onClick={openAdd}>+ Add <span style={{opacity:0.7, fontSize:11, fontWeight:500}}>(N)</span></button>
 
                             {isAdmin && (
-                                <button
-                                    onClick={onOpenAdmin}
-                                    style={{
-                                        background: "#1e293b", color: "#fff", border: "none", borderRadius: 12,
-                                        padding: "10px 18px", fontWeight: 700, cursor: "pointer",
-                                        fontFamily: "'Syne', sans-serif", fontSize: 14, whiteSpace: "nowrap",
-                                        boxShadow: "0 4px 16px rgba(30,39,59,0.25)"
-                                    }}
-                                >
-                                    🛡️ Admin Dashboard
-                                </button>
+                                <button onClick={onOpenAdmin} style={{
+                                    background: "#1e293b", color: "#fff", border: "none", borderRadius: 12,
+                                    padding: "10px 18px", fontWeight: 700, cursor: "pointer",
+                                    fontFamily: "'Syne', sans-serif", fontSize: 14, whiteSpace: "nowrap",
+                                    boxShadow: "0 4px 16px rgba(30,39,59,0.25)"
+                                }}>🛡️ Admin Dashboard</button>
                             )}
 
                             {/* User info + sign out */}
@@ -850,7 +1045,7 @@ export default function BoardPage({ onOpenAdmin }) {
                                         {(user?.user_metadata?.full_name || user?.email || "?")[0].toUpperCase()}
                                     </div>
                                     <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 1 }}>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1e1b4b" }}>{user?.user_metadata?.full_name || "User"}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{user?.user_metadata?.full_name || "User"}</span>
                                         <span style={{ fontSize: 10, color: "#a5b4fc" }}>{user?.email}</span>
                                     </div>
                                 </div>
@@ -866,32 +1061,31 @@ export default function BoardPage({ onOpenAdmin }) {
                         {COLUMNS.map(col => {
                             const active = filterStatus === col.id;
                             return (
-                            <div
-                                key={col.id} className="stat-pill"
+                            <div key={col.id} className="stat-pill"
                                 onClick={() => setFilterStatus(active ? null : col.id)}
                                 title={active ? "Click to show all" : `Filter to ${col.label} only`}
                                 style={{
                                     borderColor: active ? col.color : `${col.color}20`,
-                                    background: active ? col.pastel : "rgba(255,255,255,0.8)",
+                                    background: active ? col.pastel : T.pillBg,
                                     cursor: "pointer",
                                     boxShadow: active ? `0 0 0 2px ${col.color}55, 0 2px 8px ${col.color}22` : undefined,
                                     transform: active ? "translateY(-2px)" : undefined,
                                 }}
                             >
                                 <span style={{ width: 24, height: 24, borderRadius: 8, background: col.pastel, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{col.emoji}</span>
-                                <span style={{ fontSize: 12, color: active ? col.text : "#6b7280", fontWeight: active ? 700 : 500 }}>{col.label}</span>
+                                <span style={{ fontSize: 12, color: active ? col.text : T.textSec, fontWeight: active ? 700 : 500 }}>{col.label}</span>
                                 <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: col.color }}>{statMap[col.id]}</span>
                             </div>
                         );})}
                         <div className="stats-right">
                             <div className="stat-pill" style={{ borderColor: "rgba(16,185,129,0.2)", background: "rgba(16,185,129,0.06)" }}>
                                 <span style={{ fontSize: 16 }}>📊</span>
-                                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>Response Rate</span>
+                                <span style={{ fontSize: 12, color: T.textSec, fontWeight: 500 }}>Response Rate</span>
                                 <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: "#10B981" }}>{responseRate}%</span>
                             </div>
                             <div className="stat-pill" style={{ borderColor: "rgba(99,91,255,0.15)", background: "rgba(99,91,255,0.05)" }}>
                                 <span style={{ fontSize: 16 }}>📋</span>
-                                <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>Total</span>
+                                <span style={{ fontSize: 12, color: T.textSec, fontWeight: 500 }}>Total</span>
                                 <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: "#635bff" }}>{total}</span>
                             </div>
                         </div>
@@ -931,8 +1125,8 @@ export default function BoardPage({ onOpenAdmin }) {
                                     onDrop={() => handleDrop(col.id)}
                                     style={{
                                         flex: 1, minWidth: 205,
-                                        background: isOver ? col.pastel : "rgba(255,255,255,0.4)",
-                                        border: `1.5px solid ${isOver ? col.color + "50" : "rgba(99,91,255,0.07)"}`,
+                                        background: isOver ? col.pastel : T.colBg,
+                                        border: `1.5px solid ${isOver ? col.color + "50" : T.colBorder}`,
                                         borderRadius: 20, padding: "12px 10px",
                                         backdropFilter: "blur(6px)",
                                         transition: "background 0.2s, border-color 0.2s",
@@ -954,6 +1148,7 @@ export default function BoardPage({ onOpenAdmin }) {
                                                 onDelete={id => setDeleteTarget(cards.find(c => c.id === id))}
                                                 onDragStart={setDragId}
                                                 dragging={dragId === card.id}
+                                                T={T}
                                             />
                                         ))}
                                         {colCards.length === 0 && (
@@ -993,6 +1188,7 @@ export default function BoardPage({ onOpenAdmin }) {
                     isEdit={editCard !== null} saving={saving}
                     attachmentSlots={attachmentSlots} setAttachmentSlots={setAttachmentSlots}
                     jobLinks={jobLinks} setJobLinks={setJobLinks}
+                    T={T}
                 />
             )}
             {deleteTarget && (
