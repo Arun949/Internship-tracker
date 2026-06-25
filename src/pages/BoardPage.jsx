@@ -307,6 +307,11 @@ function Card({ card, col, onEdit, onDelete, onDragStart, dragging }) {
                     {card.notes.length > 90 ? card.notes.slice(0, 90) + "…" : card.notes}
                 </div>
             )}
+            {card.created_at && (
+                <div style={{ fontSize: 10, color: "#c7d2fe", fontWeight: 500, marginTop: 8, paddingTop: 6, borderTop: "1px solid #f3f4f6" }}>
+                    🗓 Added {new Date(card.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                </div>
+            )}
         </div>
     );
 }
