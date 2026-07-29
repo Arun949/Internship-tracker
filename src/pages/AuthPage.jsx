@@ -164,7 +164,7 @@ export default function AuthPage() {
     const dark = localStorage.getItem("jt-dark") === "1";
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
   }, []);
-  const { signIn, signUp, signInWithMagicLink } = useAuth();
+  const { signIn, signUp, signInWithMagicLink, signInWithGoogle } = useAuth();
 
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [name, setName] = useState("");
@@ -201,6 +201,13 @@ export default function AuthPage() {
     setLoading(false);
     if (err) setError(err.message);
     else setSuccess("✉️ Magic link sent! Check your inbox.");
+  };
+
+  const handleGoogleSignIn = async () => {
+    reset();
+    const { error: err } = await signInWithGoogle();
+    if (err) setError(err.message);
+    // on success, Supabase redirects to Google then back — no local state change needed here
   };
 
   const isSignIn = mode === "signin";
@@ -285,6 +292,20 @@ export default function AuthPage() {
               {loading ? "⏳ Please wait…" : isSignIn ? "Sign In →" : "Create Account →"}
             </button>
           </form>
+
+          {isSignIn && (
+            <>
+              <div className="divider" style={{ margin: "20px 0" }}>or</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button type="button" className="magic-btn" onClick={handleGoogleSignIn} disabled={loading}>
+                  🔐 Continue with Google
+                </button>
+                <button type="button" className="magic-btn" onClick={handleMagicLink} disabled={loading}>
+                  ✉️ Send Magic Link
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Switch mode */}
           <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "#94a3b8" }}>

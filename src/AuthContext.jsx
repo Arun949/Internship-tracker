@@ -61,10 +61,16 @@ export function AuthProvider({ children }) {
     const signInWithMagicLink = (email) =>
         supabase.auth.signInWithOtp({ email });
 
+    const signInWithGoogle = () =>
+        supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo: window.location.origin },
+        });
+
     const signOut = () => supabase.auth.signOut();
 
     return (
-        <AuthContext.Provider value={{ user, loading, isAdmin, signUp, signIn, signInWithMagicLink, signOut }}>
+        <AuthContext.Provider value={{ user, loading, isAdmin, signUp, signIn, signInWithMagicLink, signInWithGoogle, signOut }}>
             {children}
         </AuthContext.Provider>
     );

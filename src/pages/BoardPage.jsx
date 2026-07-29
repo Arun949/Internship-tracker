@@ -300,6 +300,8 @@ const IMPORT_FIELD_ALIASES = {
     salary: ["salary", "salary / stipend", "salary/stipend", "stipend"],
     job_link: ["job link", "link", "url", "job url"],
     notes: ["notes", "note", "comments"],
+    resume: ["resume", "resume link", "resume url", "cv"],
+    date_applied: ["date applied", "applied date", "date added", "added"],
 };
 
 function parseCSVText(text) {
@@ -329,7 +331,7 @@ function resolveImportColumns(headerRow) {
 
 const cellStr = (v) => (v === undefined || v === null ? "" : String(v).trim());
 
-function normalizeImportDeadline(v) {
+function normalizeImportDate(v) {
     if (!v) return "";
     // Date objects from parsed Excel cells are built in UTC — read them back with UTC getters.
     if (v instanceof Date) {
@@ -394,25 +396,38 @@ function DeadlineBadge({ deadline }) {
     );
 }
 
-function Card({ card, col, onEdit, onDelete, onDragStart, dragging, T }) {
+function Card({ card, col, onEdit, onDelete, onDragStart, dragging, T, selectMode, selected, onToggleSelect }) {
     const divider = T.divider;
     return (
         <div
             className={`card${dragging ? " dragging" : ""}`}
-            draggable onDragStart={() => onDragStart(card.id)}
-            style={{ borderTop: `3px solid ${col.color}` }}
+            draggable={!selectMode} onDragStart={() => onDragStart(card.id)}
+            onClick={() => { if (selectMode) onToggleSelect(card.id); }}
+            style={{
+                borderTop: `3px solid ${col.color}`, cursor: selectMode ? "pointer" : "grab",
+                boxShadow: selected ? `0 0 0 2px #635bff, 0 2px 8px rgba(99,91,255,0.07)` : undefined,
+            }}
         >
             <div style={{ position: "absolute", top: -20, right: -20, width: 64, height: 64, borderRadius: "50%", background: col.color, opacity: 0.07, pointerEvents: "none" }} />
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 9 }}>
+                {selectMode && (
+                    <input
+                        type="checkbox" checked={!!selected}
+                        onChange={() => onToggleSelect(card.id)} onClick={e => e.stopPropagation()}
+                        style={{ width: 18, height: 18, marginTop: 2, cursor: "pointer", flexShrink: 0 }}
+                    />
+                )}
                 <LogoBadge letter={card.logo || card.company?.[0]} name={card.company} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.company}</div>
                     <div style={{ fontSize: 12, color: "#6366f1", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: 500 }}>{card.role}</div>
                 </div>
-                <div style={{ display: "flex", gap: 4 }}>
-                    <button className="btn-icon" onClick={e => { e.stopPropagation(); onEdit(card); }}>✏️</button>
-                    <button className="btn-icon" onClick={e => { e.stopPropagation(); onDelete(card.id); }}>🗑</button>
-                </div>
+                {!selectMode && (
+                    <div style={{ display: "flex", gap: 4 }}>
+                        <button className="btn-icon" onClick={e => { e.stopPropagation(); onEdit(card); }}>✏️</button>
+                        <button className="btn-icon" onClick={e => { e.stopPropagation(); onDelete(card.id); }}>🗑</button>
+                    </div>
+                )}
             </div>
 
             {/* Location / Salary / Deadline badges */}
@@ -722,7 +737,7 @@ function Modal({ form, setForm, onSave, onClose, isEdit, saving, attachmentSlots
 
                 <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
                     <button className="cancel-btn" onClick={onClose}>Cancel</button>
-                    <button className="save-btn" onClick={onSave} disabled={!form.company || !form.role || saving}>
+                    <button className="save-btn" onClick={() => onSave()} disabled={!form.company || !form.role || saving}>
                         {saving ? "⏳ Saving…" : isEdit ? "Save Changes" : "Add Application"}
                     </button>
                 </div>
@@ -758,9 +773,136 @@ function DeleteConfirm({ card, onConfirm, onCancel, saving }) {
     return ReactDOM.createPortal(content, document.body);
 }
 
-function Toast({ message, onDone }) {
-    useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, [onDone]);
-    return <div className="toast">{message}</div>;
+function DuplicateConfirm({ company, role, onConfirm, onCancel, saving }) {
+    const content = (
+        <div className="delete-overlay">
+            <div className="delete-box">
+                <div style={{ fontSize: 38, marginBottom: 12 }}>⚠️</div>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 19, color: "#1e1b4b", marginBottom: 8 }}>Possible Duplicate</div>
+                <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 22, lineHeight: 1.6 }}>
+                    You already have an application for <strong style={{ color: "#6366f1" }}>{company}</strong> — {role}. Add it anyway?
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                    <button className="cancel-btn" style={{ flex: 1 }} onClick={onCancel}>Cancel</button>
+                    <button disabled={saving} onClick={onConfirm} style={{
+                        flex: 1, padding: "11px", borderRadius: 12, border: "none",
+                        background: "linear-gradient(135deg,#635bff,#818cf8)",
+                        color: "#fff", cursor: saving ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 14,
+                        fontFamily: "'Syne',sans-serif", opacity: saving ? 0.6 : 1,
+                        boxShadow: "0 4px 14px rgba(99,91,255,0.3)",
+                    }}>{saving ? "Saving…" : "Add Anyway"}</button>
+                </div>
+            </div>
+        </div>
+    );
+    return ReactDOM.createPortal(content, document.body);
+}
+
+function Toast({ message, onDone, actionLabel, onAction }) {
+    useEffect(() => { const t = setTimeout(onDone, actionLabel ? 5000 : 3000); return () => clearTimeout(t); }, [onDone, actionLabel]);
+    return (
+        <div className="toast" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span>{message}</span>
+            {actionLabel && (
+                <button onClick={() => { onAction(); onDone(); }} style={{
+                    background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)",
+                    color: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", flexShrink: 0,
+                }}>{actionLabel}</button>
+            )}
+        </div>
+    );
+}
+
+/* ─── INSIGHTS (status funnel + weekly activity) ─── */
+function weeklyActivity(cards) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+        const start = new Date(today); start.setDate(start.getDate() - i * 7 - 6);
+        const end = new Date(today); end.setDate(end.getDate() - i * 7);
+        weeks.push({ start, end, count: 0 });
+    }
+    cards.forEach(c => {
+        if (!c.created_at) return;
+        const d = new Date(c.created_at);
+        const w = weeks.find(w => d >= w.start && d <= new Date(w.end.getTime() + 86399999));
+        if (w) w.count++;
+    });
+    return weeks;
+}
+const shortDate = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+function InsightsModal({ cards, T, onClose }) {
+    const total = cards.length;
+    const statusCounts = COLUMNS.map(col => ({ col, count: cards.filter(c => c.status === col.id).length }));
+    const maxStatus = Math.max(1, ...statusCounts.map(s => s.count));
+
+    const weeks = weeklyActivity(cards);
+    const maxWeek = Math.max(1, ...weeks.map(w => w.count));
+
+    const content = (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="modal-box" style={{ maxWidth: 560 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📊</div>
+                        <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: T.text }}>Insights</span>
+                    </div>
+                    <button onClick={onClose} className="btn-icon" style={{ width: 32, height: 32, fontSize: 15 }}>✕</button>
+                </div>
+
+                <div className="label" style={{ marginBottom: 10 }}>Application Funnel</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                    {statusCounts.map(({ col, count }) => {
+                        const pct = total ? Math.round((count / total) * 100) : 0;
+                        const widthPct = (count / maxStatus) * 100;
+                        return (
+                            <div key={col.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ width: 104, flexShrink: 0, fontSize: 12, fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+                                    <span>{col.emoji}</span><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{col.label}</span>
+                                </div>
+                                <div title={`${count} of ${total} application${total === 1 ? "" : "s"} (${pct}%)`}
+                                    style={{ flex: 1, height: 16, background: T.divider, borderRadius: 4, overflow: "hidden" }}>
+                                    <div style={{
+                                        width: `${widthPct}%`, minWidth: count > 0 ? 4 : 0, height: "100%",
+                                        background: col.color, borderRadius: "0 4px 4px 0", transition: "width 0.4s ease",
+                                    }} />
+                                </div>
+                                <div style={{ width: 26, textAlign: "right", flexShrink: 0, fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 14, color: T.text }}>
+                                    {count}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="label" style={{ marginBottom: 10 }}>Weekly Activity (applications added)</div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 90 }}>
+                    {weeks.map((w, i) => {
+                        const h = Math.round((w.count / maxWeek) * 64);
+                        return (
+                            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: T.text, minHeight: 12 }}>{w.count > 0 ? w.count : ""}</div>
+                                <div
+                                    title={`${shortDate(w.start)} – ${shortDate(w.end)}: ${w.count} added`}
+                                    style={{
+                                        width: "100%", height: Math.max(h, w.count > 0 ? 4 : 2),
+                                        background: w.count > 0 ? "#635bff" : T.divider,
+                                        borderRadius: "4px 4px 0 0",
+                                    }}
+                                />
+                                {(i === 0 || i === weeks.length - 1) && (
+                                    <div style={{ fontSize: 9, color: "#a5b4fc", fontWeight: 600 }}>{shortDate(w.start)}</div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+    return ReactDOM.createPortal(content, document.body);
 }
 
 function ImportPreviewModal({ rows, skipped, onToggle, onSetAllDup, onConfirm, onCancel, importing, T }) {
@@ -812,7 +954,7 @@ function ImportPreviewModal({ rows, skipped, onToggle, onSetAllDup, onConfirm, o
                                     {r.company} <span style={{ fontWeight: 500, color: "#6366f1" }}>— {r.role}</span>
                                 </div>
                                 <div style={{ fontSize: 11, color: "#a5b4fc", marginTop: 1 }}>
-                                    {r.location || "—"}{r.deadline ? ` · due ${r.deadline}` : ""}
+                                    {r.location || "—"}{r.deadline ? ` · due ${r.deadline}` : ""}{r.dateApplied ? ` · applied ${r.dateApplied}` : ""}{r.resume ? " · 📎 resume" : ""}
                                 </div>
                             </div>
                             {r._dup && <span className="tag" style={{ background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", flexShrink: 0 }}>⚠ Already exists</span>}
@@ -854,6 +996,12 @@ export default function BoardPage({ onOpenAdmin }) {
     const [jobLinks, setJobLinks] = useState([""]);
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem("jt-dark") === "1");
 
+    const [duplicateWarning, setDuplicateWarning] = useState(false);
+    const [showInsights, setShowInsights] = useState(false);
+    const [reminderDismissed, setReminderDismissed] = useState(false);
+    const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState(new Set());
     const [importRows, setImportRows] = useState(null); // null = modal closed
     const [importSkipped, setImportSkipped] = useState(0);
     const [importing, setImporting] = useState(false);
@@ -930,10 +1078,10 @@ export default function BoardPage({ onOpenAdmin }) {
     /* Keyboard shortcuts */
     useEffect(() => {
         const fn = e => {
-            if (e.key === "Escape") { setShowModal(false); setDeleteTarget(null); }
+            if (e.key === "Escape") { setShowModal(false); setDeleteTarget(null); setDuplicateWarning(false); }
             // Press 'N' to open Add modal (when not typing in an input)
             if (e.key === "n" && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA" && document.activeElement.tagName !== "SELECT") {
-                setForm(EMPTY_FORM); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setShowModal(true);
+                setForm(EMPTY_FORM); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setDuplicateWarning(false); setShowModal(true);
             }
         };
         window.addEventListener("keydown", fn);
@@ -942,12 +1090,20 @@ export default function BoardPage({ onOpenAdmin }) {
 
     /* CSV Export */
     const exportCSV = useCallback(() => {
-        const headers = ["Company", "Role", "Location", "Status", "Deadline", "Salary", "Job Link", "Notes"];
-        const rows = cards.map(c => [
-            c.company, c.role, c.location || "", c.status,
-            c.deadline || "", c.salary || "", c.job_link || "", (c.notes || "").replace(/,/g, " ")
-        ]);
-        const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+        const headers = ["Company", "Role", "Location", "Status", "Deadline", "Salary", "Job Link", "Job Links", "Tags", "Attachments", "Notes"];
+        const rows = cards.map(c => {
+            const links = c.job_links?.length > 0 ? c.job_links : c.job_link ? [c.job_link] : [];
+            const atts = c.attachments?.length > 0 ? c.attachments : c.resume_url ? [{ label: "Resume", url: c.resume_url }] : [];
+            return [
+                c.company, c.role, c.location || "", c.status, c.deadline || "", c.salary || "",
+                links[0] || "", links.join("; "),
+                (c.tags || []).join("; "),
+                atts.map(a => `${a.label}: ${a.url}`).join("; "),
+                c.notes || "",
+            ];
+        });
+        const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\n");
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url;
@@ -978,15 +1134,18 @@ export default function BoardPage({ onOpenAdmin }) {
                 const role = cellStr(row[cols.role]);
                 if (!company || !role) return null;
                 const isDup = existingKeys.has(`${company.toLowerCase()}|${role.toLowerCase()}`);
+                const resumeRaw = cols.resume !== null ? cellStr(row[cols.resume]) : "";
                 return {
                     _rowId: i,
                     company, role,
                     location: cols.location !== null ? cellStr(row[cols.location]) : "",
                     status: cols.status !== null ? normalizeImportStatus(row[cols.status]) : "saved",
-                    deadline: cols.deadline !== null ? normalizeImportDeadline(row[cols.deadline]) : "",
+                    deadline: cols.deadline !== null ? normalizeImportDate(row[cols.deadline]) : "",
                     salary: cols.salary !== null ? cellStr(row[cols.salary]) : "",
                     job_link: cols.job_link !== null ? cellStr(row[cols.job_link]) : "",
                     notes: cols.notes !== null ? cellStr(row[cols.notes]) : "",
+                    resume: resumeRaw.includes("://") ? resumeRaw : "",
+                    dateApplied: cols.date_applied !== null ? normalizeImportDate(row[cols.date_applied]) : "",
                     _dup: isDup,
                     _include: !isDup,
                 };
@@ -1008,23 +1167,30 @@ export default function BoardPage({ onOpenAdmin }) {
         if (selected.length === 0) { setImportRows(null); return; }
         setImporting(true);
         const now = new Date().toISOString();
-        const payloads = selected.map(r => ({
-            company: r.company,
-            role: r.role,
-            location: r.location || null,
-            deadline: r.deadline || null,
-            salary: r.salary || null,
-            notes: r.notes || null,
-            status: r.status,
-            attachments: [],
-            job_links: r.job_link ? [r.job_link] : [],
-            resume_url: null,
-            job_link: r.job_link || null,
-            tags: [],
-            status_history: [{ status: r.status, changed_at: now }],
-            logo: r.company[0].toUpperCase(),
-            user_id: user.id,
-        }));
+        const payloads = selected.map(r => {
+            // "Date Applied" from the sheet becomes the card's created_at, so imported
+            // history keeps its real date instead of showing today as "date added".
+            const appliedAt = r.dateApplied ? new Date(r.dateApplied + "T12:00:00").toISOString() : now;
+            const attachments = r.resume ? [{ label: "Resume", url: r.resume }] : [];
+            return {
+                company: r.company,
+                role: r.role,
+                location: r.location || null,
+                deadline: r.deadline || null,
+                salary: r.salary || null,
+                notes: r.notes || null,
+                status: r.status,
+                attachments,
+                job_links: r.job_link ? [r.job_link] : [],
+                resume_url: r.resume || null,
+                job_link: r.job_link || null,
+                tags: [],
+                status_history: [{ status: r.status, changed_at: appliedAt }],
+                logo: r.company[0].toUpperCase(),
+                created_at: appliedAt,
+                user_id: user.id,
+            };
+        });
 
         const { error } = await supabase.from("internship_cards").insert(payloads);
         setImporting(false);
@@ -1058,6 +1224,28 @@ export default function BoardPage({ onOpenAdmin }) {
     const responseRate = total ? Math.round((cards.filter(c => ["interview", "offer"].includes(c.status)).length / total) * 100) : 0;
     const statMap = Object.fromEntries(COLUMNS.map(col => [col.id, cards.filter(c => c.status === col.id).length]));
     const visibleColumns = filterStatus ? COLUMNS.filter(c => c.id === filterStatus) : COLUMNS;
+    const dueSoonCards = cards.filter(c => {
+        if (c.status === "offer" || c.status === "rejected") return false;
+        const d = daysLeft(c.deadline);
+        return d !== null && d >= 0 && d <= 3;
+    });
+
+    /* Browser notification for upcoming deadlines — at most once per day */
+    useEffect(() => {
+        if (notifPermission !== "granted" || dueSoonCards.length === 0) return;
+        const today = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem("jt-last-notified") === today) return;
+        localStorage.setItem("jt-last-notified", today);
+        new Notification("JobTrack — deadlines coming up", {
+            body: `${dueSoonCards.length} application${dueSoonCards.length === 1 ? "" : "s"} due within 3 days.`,
+            icon: "/icon-192.png",
+        });
+    }, [dueSoonCards.length, notifPermission]);
+
+    const enableReminders = () => {
+        if (typeof Notification === "undefined") return;
+        Notification.requestPermission().then(setNotifPermission);
+    };
 
     /* ── Open modal helpers ── */
     const openAdd = useCallback(() => {
@@ -1065,6 +1253,7 @@ export default function BoardPage({ onOpenAdmin }) {
         setEditCard(null);
         setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]);
         setJobLinks([""]);
+        setDuplicateWarning(false);
         setShowModal(true);
     }, []);
 
@@ -1083,11 +1272,21 @@ export default function BoardPage({ onOpenAdmin }) {
         setJobLinks(existingLinks);
         setShowModal(true);
     }, []);
-    const showToast = (msg) => setToast(msg);
+    const showToast = (msg) => setToast({ message: msg });
+    const showUndoToast = (msg, onAction) => setToast({ message: msg, actionLabel: "Undo", onAction });
 
     /* ── CRUD: Save ── */
-    const handleSave = async () => {
+    const handleSave = async (force = false) => {
         if (!form.company.trim() || !form.role.trim()) return;
+
+        if (!editCard && force !== true) {
+            const isDup = cards.some(c =>
+                c.company.trim().toLowerCase() === form.company.trim().toLowerCase() &&
+                c.role.trim().toLowerCase() === form.role.trim().toLowerCase()
+            );
+            if (isDup) { setDuplicateWarning(true); return; }
+        }
+        setDuplicateWarning(false);
         setSaving(true);
 
         // Upload any new files in attachment slots
@@ -1162,14 +1361,72 @@ export default function BoardPage({ onOpenAdmin }) {
         setShowModal(false);
     };
 
-    /* ── CRUD: Delete ── */
-    const confirmDelete = async () => {
-        if (!deleteTarget) return;
-        setSaving(true);
-        await supabase.from("internship_cards").delete().eq("id", deleteTarget.id);
-        setSaving(false);
+    /* ── CRUD: Delete (soft — 5s undo window before the row is actually deleted) ── */
+    const confirmDelete = () => {
+        const card = deleteTarget;
+        if (!card) return;
         setDeleteTarget(null);
-        showToast("🗑 Application removed.");
+        setCards(prev => prev.filter(c => c.id !== card.id));
+
+        const timeoutId = setTimeout(async () => {
+            await supabase.from("internship_cards").delete().eq("id", card.id);
+        }, 5000);
+
+        showUndoToast(`🗑 Removed ${card.company}`, () => {
+            clearTimeout(timeoutId);
+            setCards(prev => prev.some(c => c.id === card.id) ? prev : [...prev, card]);
+        });
+    };
+
+    /* ── Bulk select actions ── */
+    const toggleSelect = (id) => setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
+    const selectAll = () => setSelectedIds(new Set(filtered.map(c => c.id)));
+    const clearSelection = () => setSelectedIds(new Set());
+    const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+    const bulkDelete = () => {
+        const ids = [...selectedIds];
+        const removedCards = cards.filter(c => ids.includes(c.id));
+        if (removedCards.length === 0) return;
+        setCards(prev => prev.filter(c => !ids.includes(c.id)));
+        exitSelectMode();
+
+        const timeoutId = setTimeout(async () => {
+            await supabase.from("internship_cards").delete().in("id", ids);
+        }, 5000);
+
+        showUndoToast(`🗑 Removed ${removedCards.length} application${removedCards.length === 1 ? "" : "s"}`, () => {
+            clearTimeout(timeoutId);
+            setCards(prev => {
+                const existingIds = new Set(prev.map(c => c.id));
+                return [...prev, ...removedCards.filter(c => !existingIds.has(c.id))];
+            });
+        });
+    };
+
+    const bulkMoveTo = async (status) => {
+        const ids = [...selectedIds];
+        const now = new Date().toISOString();
+        const targets = cards.filter(c => ids.includes(c.id) && c.status !== status);
+        if (targets.length === 0) { exitSelectMode(); return; }
+
+        setCards(prev => prev.map(c => {
+            const t = targets.find(x => x.id === c.id);
+            if (!t) return c;
+            const prevHistory = c.status_history?.length > 0 ? c.status_history : [{ status: c.status, changed_at: c.created_at || now }];
+            return { ...c, status, status_history: [...prevHistory, { status, changed_at: now }] };
+        }));
+        exitSelectMode();
+        showToast(`↪ Moved ${targets.length} application${targets.length === 1 ? "" : "s"} to ${COLUMNS.find(c => c.id === status)?.label}`);
+
+        await Promise.all(targets.map(t => {
+            const prevHistory = t.status_history?.length > 0 ? t.status_history : [{ status: t.status, changed_at: t.created_at || now }];
+            return supabase.from("internship_cards").update({ status, status_history: [...prevHistory, { status, changed_at: now }] }).eq("id", t.id);
+        }));
     };
 
     /* ── Drag & drop: update status ── */
@@ -1255,6 +1512,28 @@ export default function BoardPage({ onOpenAdmin }) {
                                 fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: "#6366f1",
                                 whiteSpace: "nowrap", transition: "background 0.15s",
                             }}>📁 Import</button>
+
+                            {/* Insights */}
+                            <button onClick={() => setShowInsights(true)} title="View application insights" style={{
+                                background: T.sortBg, border: "1.5px solid rgba(99,91,255,0.15)",
+                                borderRadius: 12, padding: "9px 14px", fontWeight: 600, cursor: "pointer",
+                                fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: "#6366f1",
+                                whiteSpace: "nowrap", transition: "background 0.15s",
+                            }}>📊 Insights</button>
+
+                            {/* Bulk select toggle */}
+                            <button
+                                onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                                title={selectMode ? "Exit select mode" : "Select multiple applications"}
+                                style={{
+                                    background: selectMode ? "#635bff" : T.sortBg,
+                                    border: `1.5px solid ${selectMode ? "#635bff" : "rgba(99,91,255,0.15)"}`,
+                                    borderRadius: 12, padding: "9px 14px", fontWeight: 600, cursor: "pointer",
+                                    fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13,
+                                    color: selectMode ? "#fff" : "#6366f1",
+                                    whiteSpace: "nowrap", transition: "background 0.15s",
+                                }}
+                            >{selectMode ? "✕ Cancel" : "☑️ Select"}</button>
 
                             {/* Dark mode toggle */}
                             <button
@@ -1348,6 +1627,21 @@ export default function BoardPage({ onOpenAdmin }) {
                     </div>
                 ) : (
                     <>
+                    {dueSoonCards.length > 0 && !reminderDismissed && (
+                        <div style={{
+                            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                            background: "#fff7ed", border: "1.5px solid #fde68a", borderRadius: 14,
+                            padding: "10px 16px", marginBottom: 14, fontSize: 13, color: "#92400e", fontWeight: 600,
+                        }}>
+                            <span>⏰ {dueSoonCards.length} application{dueSoonCards.length === 1 ? "" : "s"} due within 3 days: {dueSoonCards.slice(0, 3).map(c => c.company).join(", ")}{dueSoonCards.length > 3 ? "…" : ""}</span>
+                            {notifPermission === "default" && (
+                                <button onClick={enableReminders} style={{ background: "#fde68a", border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: "#92400e", cursor: "pointer" }}>
+                                    🔔 Enable notifications
+                                </button>
+                            )}
+                            <button onClick={() => setReminderDismissed(true)} style={{ background: "none", border: "none", color: "#92400e", cursor: "pointer", marginLeft: "auto", fontWeight: 700 }}>✕</button>
+                        </div>
+                    )}
                     {filterStatus && (
                         <div style={{ textAlign: "center", marginBottom: 12, fontSize: 13, color: "#6366f1", fontWeight: 600 }}>
                             Showing <strong>{COLUMNS.find(c => c.id === filterStatus)?.label}</strong> only ·{" "}
@@ -1389,6 +1683,9 @@ export default function BoardPage({ onOpenAdmin }) {
                                                 onDragStart={setDragId}
                                                 dragging={dragId === card.id}
                                                 T={T}
+                                                selectMode={selectMode}
+                                                selected={selectedIds.has(card.id)}
+                                                onToggleSelect={toggleSelect}
                                             />
                                         ))}
                                         {colCards.length === 0 && (
@@ -1402,7 +1699,7 @@ export default function BoardPage({ onOpenAdmin }) {
 
                                     <button className="quick-add-btn"
                                         style={{ borderColor: col.border }}
-                                        onClick={() => { setForm({ ...EMPTY_FORM, status: col.id }); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setShowModal(true); }}
+                                        onClick={() => { setForm({ ...EMPTY_FORM, status: col.id }); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setDuplicateWarning(false); setShowModal(true); }}
                                         onMouseEnter={e => { e.currentTarget.style.background = col.pastel; e.currentTarget.style.color = col.text; e.currentTarget.style.borderColor = col.color + "60"; }}
                                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#a5b4fc"; e.currentTarget.style.borderColor = "#c7d2fe"; }}
                                     >
@@ -1416,6 +1713,44 @@ export default function BoardPage({ onOpenAdmin }) {
                 )}
             </main>
 
+            {selectMode && (
+                <div style={{
+                    position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+                    background: "#1e1b4b", color: "#fff", borderRadius: 16, padding: "12px 18px",
+                    display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "center",
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.28)", zIndex: 500, fontSize: 13, fontWeight: 600,
+                    maxWidth: "92vw",
+                }}>
+                    <span>{selectedIds.size} selected</span>
+                    <button onClick={selectAll} style={{ background: "none", border: "none", color: "#a5b4fc", cursor: "pointer", fontWeight: 700, fontSize: 12, textDecoration: "underline" }}>Select all</button>
+                    <button onClick={clearSelection} style={{ background: "none", border: "none", color: "#a5b4fc", cursor: "pointer", fontWeight: 700, fontSize: 12, textDecoration: "underline" }}>Clear</button>
+                    <select
+                        value=""
+                        onChange={e => { if (e.target.value) bulkMoveTo(e.target.value); }}
+                        disabled={selectedIds.size === 0}
+                        style={{
+                            background: "#2a2660", border: "1px solid rgba(255,255,255,0.2)", color: "#fff",
+                            borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: selectedIds.size === 0 ? "not-allowed" : "pointer",
+                        }}
+                    >
+                        <option value="">Move to…</option>
+                        {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+                    </select>
+                    <button
+                        onClick={bulkDelete} disabled={selectedIds.size === 0}
+                        style={{
+                            background: "#f43f5e", border: "none", color: "#fff", borderRadius: 8,
+                            padding: "6px 12px", fontSize: 12, fontWeight: 700,
+                            cursor: selectedIds.size === 0 ? "not-allowed" : "pointer", opacity: selectedIds.size === 0 ? 0.5 : 1,
+                        }}
+                    >🗑 Delete</button>
+                    <button
+                        onClick={exitSelectMode}
+                        style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >Done</button>
+                </div>
+            )}
+
             <footer style={{ textAlign: "center", paddingBottom: 32, color: "#c7d2fe", fontSize: 12, fontWeight: 500 }}>
                 💡 Drag & drop cards between columns · Changes sync in real-time · Press <kbd style={{ background: "#e0e7ff", color: "#635bff", borderRadius: 5, padding: "1px 6px", fontSize: 11 }}>Esc</kbd> to close
             </footer>
@@ -1424,7 +1759,7 @@ export default function BoardPage({ onOpenAdmin }) {
             {showModal && (
                 <Modal
                     form={form} setForm={setForm}
-                    onSave={handleSave} onClose={() => setShowModal(false)}
+                    onSave={handleSave} onClose={() => { setShowModal(false); setDuplicateWarning(false); }}
                     isEdit={editCard !== null} saving={saving}
                     attachmentSlots={attachmentSlots} setAttachmentSlots={setAttachmentSlots}
                     jobLinks={jobLinks} setJobLinks={setJobLinks}
@@ -1432,7 +1767,18 @@ export default function BoardPage({ onOpenAdmin }) {
                 />
             )}
             {deleteTarget && (
-                <DeleteConfirm card={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} saving={saving} />
+                <DeleteConfirm card={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} saving={false} />
+            )}
+            {duplicateWarning && (
+                <DuplicateConfirm
+                    company={form.company} role={form.role}
+                    onConfirm={() => handleSave(true)}
+                    onCancel={() => setDuplicateWarning(false)}
+                    saving={saving}
+                />
+            )}
+            {showInsights && (
+                <InsightsModal cards={cards} T={T} onClose={() => setShowInsights(false)} />
             )}
             {importRows && (
                 <ImportPreviewModal
@@ -1442,7 +1788,7 @@ export default function BoardPage({ onOpenAdmin }) {
                     importing={importing} T={T}
                 />
             )}
-            {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+            {toast && <Toast message={toast.message} actionLabel={toast.actionLabel} onAction={toast.onAction} onDone={() => setToast(null)} />}
         </div>
     );
 }
