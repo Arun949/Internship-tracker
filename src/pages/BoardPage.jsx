@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
-import readXlsxFile from "read-excel-file/browser";
+import { readSheet } from "read-excel-file/browser";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthContext";
 
@@ -358,7 +358,7 @@ async function parseImportFile(file) {
         const text = await file.text();
         [headerRow, ...dataRows] = parseCSVText(text);
     } else {
-        const rows = await readXlsxFile(file);
+        const rows = await readSheet(file); // flat rows for the first sheet
         [headerRow, ...dataRows] = rows;
     }
     return { headerRow: headerRow || [], dataRows: dataRows || [] };
