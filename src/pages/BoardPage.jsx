@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
+import readXlsxFile from "read-excel-file/browser";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../AuthContext";
 
@@ -287,6 +288,80 @@ function daysLeft(deadline) {
     if (!deadline) return null;
     const now = new Date(); now.setHours(0, 0, 0, 0);
     return Math.ceil((new Date(deadline + "T00:00:00") - now) / 86400000);
+}
+
+/* ─── IMPORT (Excel / CSV) ─── */
+const IMPORT_FIELD_ALIASES = {
+    company: ["company", "company name", "employer"],
+    role: ["role", "position", "job title", "title"],
+    location: ["location", "city"],
+    status: ["status"],
+    deadline: ["deadline", "application deadline", "due date"],
+    salary: ["salary", "salary / stipend", "salary/stipend", "stipend"],
+    job_link: ["job link", "link", "url", "job url"],
+    notes: ["notes", "note", "comments"],
+};
+
+function parseCSVText(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+            if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+            else field += c;
+        } else if (c === '"') inQuotes = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\n" || c === "\r") {
+            if (c === "\r" && text[i + 1] === "\n") i++;
+            row.push(field); rows.push(row); row = []; field = "";
+        } else field += c;
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.length > 1 || r[0] !== "");
+}
+
+function resolveImportColumns(headerRow) {
+    const norm = headerRow.map(h => String(h ?? "").trim().toLowerCase());
+    const find = (aliases) => { const idx = norm.findIndex(h => aliases.includes(h)); return idx === -1 ? null : idx; };
+    return Object.fromEntries(Object.entries(IMPORT_FIELD_ALIASES).map(([field, aliases]) => [field, find(aliases)]));
+}
+
+const cellStr = (v) => (v === undefined || v === null ? "" : String(v).trim());
+
+function normalizeImportDeadline(v) {
+    if (!v) return "";
+    // Date objects from parsed Excel cells are built in UTC — read them back with UTC getters.
+    if (v instanceof Date) {
+        if (isNaN(v)) return "";
+        return `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, "0")}-${String(v.getUTCDate()).padStart(2, "0")}`;
+    }
+    const s = String(v).trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    // Non-ISO strings (e.g. "08/15/2026") are parsed by Date() in local time —
+    // read them back with local getters, or toISOString()'s UTC conversion can shift the day.
+    const d = new Date(s);
+    return isNaN(d) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function normalizeImportStatus(v) {
+    const s = cellStr(v).toLowerCase();
+    if (!s) return "saved";
+    return COLUMNS.find(c => c.id === s || c.label.toLowerCase() === s)?.id || "saved";
+}
+
+async function parseImportFile(file) {
+    const isCSV = /\.csv$/i.test(file.name);
+    let headerRow, dataRows;
+    if (isCSV) {
+        const text = await file.text();
+        [headerRow, ...dataRows] = parseCSVText(text);
+    } else {
+        const rows = await readXlsxFile(file);
+        [headerRow, ...dataRows] = rows;
+    }
+    return { headerRow: headerRow || [], dataRows: dataRows || [] };
 }
 
 /* ─── SUB-COMPONENTS ─── */
@@ -688,6 +763,75 @@ function Toast({ message, onDone }) {
     return <div className="toast">{message}</div>;
 }
 
+function ImportPreviewModal({ rows, skipped, onToggle, onSetAllDup, onConfirm, onCancel, importing, T }) {
+    const dupCount = rows.filter(r => r._dup).length;
+    const includeCount = rows.filter(r => r._include).length;
+
+    const linkBtn = (onClick, label) => (
+        <button type="button" onClick={onClick} style={{
+            background: T.tagBg, border: `1px solid ${T.tagBorder}`, borderRadius: 8,
+            padding: "5px 10px", fontSize: 11.5, fontWeight: 700, color: "#635bff", cursor: "pointer",
+        }}>{label}</button>
+    );
+
+    const content = (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onCancel()}>
+            <div className="modal-box" style={{ maxWidth: 640 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📥</div>
+                            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 20, color: T.text }}>Import Preview</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#a5b4fc", marginLeft: 46 }}>
+                            {rows.length} job{rows.length === 1 ? "" : "s"} found
+                            {dupCount > 0 && ` · ${dupCount} possible duplicate${dupCount === 1 ? "" : "s"}`}
+                            {skipped > 0 && ` · ${skipped} row${skipped === 1 ? "" : "s"} skipped (missing Company/Role)`}
+                        </div>
+                    </div>
+                    <button onClick={onCancel} className="btn-icon" style={{ width: 32, height: 32, fontSize: 15 }}>✕</button>
+                </div>
+
+                {dupCount > 0 && (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        {linkBtn(() => onSetAllDup(true), `Include all ${dupCount} duplicates`)}
+                        {linkBtn(() => onSetAllDup(false), `Exclude all duplicates`)}
+                    </div>
+                )}
+
+                <div style={{ maxHeight: 360, overflowY: "auto", border: `1px solid ${T.divider}`, borderRadius: 12 }}>
+                    {rows.map(r => (
+                        <label key={r._rowId} style={{
+                            display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                            borderBottom: `1px solid ${T.divider}`, cursor: "pointer",
+                            background: r._dup ? "rgba(245,158,11,0.07)" : "transparent",
+                        }}>
+                            <input type="checkbox" checked={r._include} onChange={() => onToggle(r._rowId)} style={{ flexShrink: 0, width: 15, height: 15, cursor: "pointer" }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {r.company} <span style={{ fontWeight: 500, color: "#6366f1" }}>— {r.role}</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: "#a5b4fc", marginTop: 1 }}>
+                                    {r.location || "—"}{r.deadline ? ` · due ${r.deadline}` : ""}
+                                </div>
+                            </div>
+                            {r._dup && <span className="tag" style={{ background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", flexShrink: 0 }}>⚠ Already exists</span>}
+                        </label>
+                    ))}
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                    <button className="cancel-btn" onClick={onCancel}>Cancel</button>
+                    <button className="save-btn" onClick={onConfirm} disabled={importing || includeCount === 0}>
+                        {importing ? "⏳ Importing…" : `Import ${includeCount} Job${includeCount === 1 ? "" : "s"}`}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+    return ReactDOM.createPortal(content, document.body);
+}
+
 /* ─── MAIN BOARD PAGE ─── */
 export default function BoardPage({ onOpenAdmin }) {
     const { user, signOut, isAdmin } = useAuth();
@@ -709,6 +853,11 @@ export default function BoardPage({ onOpenAdmin }) {
     const [attachmentSlots, setAttachmentSlots] = useState([{ label: "Resume", existingUrl: "", file: null }]);
     const [jobLinks, setJobLinks] = useState([""]);
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem("jt-dark") === "1");
+
+    const [importRows, setImportRows] = useState(null); // null = modal closed
+    const [importSkipped, setImportSkipped] = useState(0);
+    const [importing, setImporting] = useState(false);
+    const importInputRef = useRef(null);
 
     const T = {
         text:      darkMode ? "#e8e6ff" : "#1e1b4b",
@@ -806,6 +955,85 @@ export default function BoardPage({ onOpenAdmin }) {
         a.click(); URL.revokeObjectURL(url);
         showToast("📥 Exported to CSV!");
     }, [cards]);
+
+    /* ── Import from Excel/CSV ── */
+    const handleImportFile = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+
+        try {
+            const { headerRow, dataRows } = await parseImportFile(file);
+            if (dataRows.length === 0) { showToast("⚠️ No rows found in file"); return; }
+
+            const cols = resolveImportColumns(headerRow);
+            if (cols.company === null || cols.role === null) {
+                showToast("❌ Couldn't find Company/Role columns — check the file's headers");
+                return;
+            }
+
+            const existingKeys = new Set(cards.map(c => `${c.company.trim().toLowerCase()}|${c.role.trim().toLowerCase()}`));
+            const parsed = dataRows.map((row, i) => {
+                const company = cellStr(row[cols.company]);
+                const role = cellStr(row[cols.role]);
+                if (!company || !role) return null;
+                const isDup = existingKeys.has(`${company.toLowerCase()}|${role.toLowerCase()}`);
+                return {
+                    _rowId: i,
+                    company, role,
+                    location: cols.location !== null ? cellStr(row[cols.location]) : "",
+                    status: cols.status !== null ? normalizeImportStatus(row[cols.status]) : "saved",
+                    deadline: cols.deadline !== null ? normalizeImportDeadline(row[cols.deadline]) : "",
+                    salary: cols.salary !== null ? cellStr(row[cols.salary]) : "",
+                    job_link: cols.job_link !== null ? cellStr(row[cols.job_link]) : "",
+                    notes: cols.notes !== null ? cellStr(row[cols.notes]) : "",
+                    _dup: isDup,
+                    _include: !isDup,
+                };
+            }).filter(Boolean);
+
+            if (parsed.length === 0) { showToast("❌ No valid rows (need Company + Role)"); return; }
+            setImportSkipped(dataRows.length - parsed.length);
+            setImportRows(parsed);
+        } catch (err) {
+            showToast("❌ Couldn't read file: " + err.message);
+        }
+    };
+
+    const toggleImportRow = (rowId) => setImportRows(prev => prev.map(r => r._rowId === rowId ? { ...r, _include: !r._include } : r));
+    const setAllImportDup = (include) => setImportRows(prev => prev.map(r => r._dup ? { ...r, _include: include } : r));
+
+    const confirmImport = async () => {
+        const selected = importRows.filter(r => r._include);
+        if (selected.length === 0) { setImportRows(null); return; }
+        setImporting(true);
+        const now = new Date().toISOString();
+        const payloads = selected.map(r => ({
+            company: r.company,
+            role: r.role,
+            location: r.location || null,
+            deadline: r.deadline || null,
+            salary: r.salary || null,
+            notes: r.notes || null,
+            status: r.status,
+            attachments: [],
+            job_links: r.job_link ? [r.job_link] : [],
+            resume_url: null,
+            job_link: r.job_link || null,
+            tags: [],
+            status_history: [{ status: r.status, changed_at: now }],
+            logo: r.company[0].toUpperCase(),
+            user_id: user.id,
+        }));
+
+        const { error } = await supabase.from("internship_cards").insert(payloads);
+        setImporting(false);
+        if (error) { showToast("❌ Import failed: " + error.message); return; }
+
+        const skippedDup = importRows.length - selected.length;
+        showToast(`📥 Imported ${selected.length} job${selected.length === 1 ? "" : "s"}` + (skippedDup ? ` · ${skippedDup} skipped` : ""));
+        setImportRows(null);
+    };
 
     /* ── Derived state ── */
     const sortCards = useCallback((arr) => {
@@ -1016,6 +1244,18 @@ export default function BoardPage({ onOpenAdmin }) {
                                 whiteSpace: "nowrap", transition: "background 0.15s",
                             }}>📥 Export</button>
 
+                            {/* Excel/CSV Import */}
+                            <input
+                                ref={importInputRef} type="file" accept=".xlsx,.xls,.csv"
+                                onChange={handleImportFile} style={{ display: "none" }}
+                            />
+                            <button onClick={() => importInputRef.current?.click()} title="Import jobs from Excel/CSV" style={{
+                                background: T.sortBg, border: "1.5px solid rgba(99,91,255,0.15)",
+                                borderRadius: 12, padding: "9px 14px", fontWeight: 600, cursor: "pointer",
+                                fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, color: "#6366f1",
+                                whiteSpace: "nowrap", transition: "background 0.15s",
+                            }}>📁 Import</button>
+
                             {/* Dark mode toggle */}
                             <button
                                 onClick={() => setDarkMode(d => !d)}
@@ -1193,6 +1433,14 @@ export default function BoardPage({ onOpenAdmin }) {
             )}
             {deleteTarget && (
                 <DeleteConfirm card={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} saving={saving} />
+            )}
+            {importRows && (
+                <ImportPreviewModal
+                    rows={importRows} skipped={importSkipped}
+                    onToggle={toggleImportRow} onSetAllDup={setAllImportDup}
+                    onConfirm={confirmImport} onCancel={() => setImportRows(null)}
+                    importing={importing} T={T}
+                />
             )}
             {toast && <Toast message={toast} onDone={() => setToast(null)} />}
         </div>
