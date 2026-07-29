@@ -396,13 +396,13 @@ function DeadlineBadge({ deadline }) {
     );
 }
 
-function Card({ card, col, onEdit, onDelete, onDragStart, dragging, T, selectMode, selected, onToggleSelect }) {
+function Card({ card, col, onEdit, onDelete, onDragStart, dragging, T, selectMode, selected, onToggleSelect, onView }) {
     const divider = T.divider;
     return (
         <div
             className={`card${dragging ? " dragging" : ""}`}
             draggable={!selectMode} onDragStart={() => onDragStart(card.id)}
-            onClick={() => { if (selectMode) onToggleSelect(card.id); }}
+            onClick={() => { if (selectMode) onToggleSelect(card.id); else onView(card); }}
             style={{
                 borderTop: `3px solid ${col.color}`, cursor: selectMode ? "pointer" : "grab",
                 boxShadow: selected ? `0 0 0 2px #635bff, 0 2px 8px rgba(99,91,255,0.07)` : undefined,
@@ -798,6 +798,119 @@ function DuplicateConfirm({ company, role, onConfirm, onCancel, saving }) {
     return ReactDOM.createPortal(content, document.body);
 }
 
+function DetailField({ label, value, color }) {
+    return (
+        <div>
+            <div className="label" style={{ marginBottom: 3 }}>{label}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color }}>{value}</div>
+        </div>
+    );
+}
+
+function DetailModal({ card, col, T, onEdit, onClose }) {
+    const atts = card.attachments?.length > 0 ? card.attachments : card.resume_url ? [{ label: "Resume", url: card.resume_url }] : [];
+    const links = card.job_links?.length > 0 ? card.job_links : card.job_link ? [card.job_link] : [];
+
+    const content = (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="modal-box" style={{ maxWidth: 480 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                        <LogoBadge letter={card.logo || card.company?.[0]} name={card.company} size={48} />
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 19, color: T.text, overflowWrap: "break-word" }}>{card.company}</div>
+                            <div style={{ fontSize: 13, color: "#6366f1", fontWeight: 600, marginTop: 2 }}>{card.role}</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="btn-icon" style={{ width: 32, height: 32, fontSize: 15, flexShrink: 0 }}>✕</button>
+                </div>
+
+                <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, background: col.pastel, color: col.text,
+                    border: `1px solid ${col.border}`, borderRadius: 99, padding: "4px 12px", fontSize: 12, fontWeight: 700, marginBottom: 18,
+                }}>
+                    {col.emoji} {col.label}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+                    <DetailField label="Location" value={card.location || "—"} color={T.text} />
+                    <DetailField label="Salary / Stipend" value={card.salary || "—"} color={T.text} />
+                    <DetailField label="Deadline" value={card.deadline ? formatDate(card.deadline) : "—"} color={T.text} />
+                    <DetailField label="Date Added" value={card.created_at ? new Date(card.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"} color={T.text} />
+                </div>
+
+                {card.tags?.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                        <label className="label">Tags</label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                            {card.tags.map((t, i) => {
+                                const c = tagColor(t);
+                                return <span key={i} className="tag" style={{ background: `${c}18`, color: c, border: `1px solid ${c}30` }}>{t}</span>;
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {links.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                        <label className="label">Job Links</label>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                            {links.map((l, i) => (
+                                <a key={i} href={l} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: "#635bff", fontWeight: 600, wordBreak: "break-all" }}>🔗 {l}</a>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {atts.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                        <label className="label">Documents</label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                            {atts.map((a, i) => (
+                                <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="tag"
+                                    style={{ background: T.tagBg, color: T.tagText, border: `1px solid ${T.tagBorder}`, textDecoration: "none" }}>📄 {a.label}</a>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {card.notes && (
+                    <div style={{ marginBottom: 18 }}>
+                        <label className="label">Notes</label>
+                        <div style={{ fontSize: 13, color: T.textSec, lineHeight: 1.6, marginTop: 6, whiteSpace: "pre-wrap" }}>{card.notes}</div>
+                    </div>
+                )}
+
+                {card.status_history?.length > 0 && (
+                    <div>
+                        <label className="label">Status History</label>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                            {card.status_history.map((h, i) => {
+                                const hCol = COLUMNS.find(c => c.id === h.status);
+                                return (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                                        <span style={{ width: 9, height: 9, borderRadius: "50%", background: hCol?.color || "#ccc", flexShrink: 0 }} />
+                                        <span style={{ color: T.text, fontWeight: 600 }}>{hCol?.label || h.status}</span>
+                                        <span style={{ color: "#a5b4fc", marginLeft: "auto", flexShrink: 0 }}>
+                                            {new Date(h.changed_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                    <button className="cancel-btn" onClick={onClose}>Close</button>
+                    <button className="save-btn" onClick={onEdit}>✏️ Edit</button>
+                </div>
+            </div>
+        </div>
+    );
+    return ReactDOM.createPortal(content, document.body);
+}
+
 function Toast({ message, onDone, actionLabel, onAction }) {
     useEffect(() => { const t = setTimeout(onDone, actionLabel ? 5000 : 3000); return () => clearTimeout(t); }, [onDone, actionLabel]);
     return (
@@ -998,6 +1111,7 @@ export default function BoardPage({ onOpenAdmin }) {
 
     const [duplicateWarning, setDuplicateWarning] = useState(false);
     const [showInsights, setShowInsights] = useState(false);
+    const [viewCard, setViewCard] = useState(null);
     const [reminderDismissed, setReminderDismissed] = useState(false);
     const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
     const [selectMode, setSelectMode] = useState(false);
@@ -1075,10 +1189,18 @@ export default function BoardPage({ onOpenAdmin }) {
         return () => supabase.removeChannel(channel);
     }, [user]);
 
+    /* Keep the open detail view in sync if the card changes elsewhere (e.g. another tab) */
+    useEffect(() => {
+        if (!viewCard) return;
+        const latest = cards.find(c => c.id === viewCard.id);
+        if (latest && latest !== viewCard) setViewCard(latest);
+        if (!latest) setViewCard(null);
+    }, [cards, viewCard]);
+
     /* Keyboard shortcuts */
     useEffect(() => {
         const fn = e => {
-            if (e.key === "Escape") { setShowModal(false); setDeleteTarget(null); setDuplicateWarning(false); }
+            if (e.key === "Escape") { setShowModal(false); setDeleteTarget(null); setDuplicateWarning(false); setViewCard(null); }
             // Press 'N' to open Add modal (when not typing in an input)
             if (e.key === "n" && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA" && document.activeElement.tagName !== "SELECT") {
                 setForm(EMPTY_FORM); setEditCard(null); setAttachmentSlots([{ label: "Resume", existingUrl: "", file: null }]); setJobLinks([""]); setDuplicateWarning(false); setShowModal(true);
@@ -1686,6 +1808,7 @@ export default function BoardPage({ onOpenAdmin }) {
                                                 selectMode={selectMode}
                                                 selected={selectedIds.has(card.id)}
                                                 onToggleSelect={toggleSelect}
+                                                onView={setViewCard}
                                             />
                                         ))}
                                         {colCards.length === 0 && (
@@ -1779,6 +1902,13 @@ export default function BoardPage({ onOpenAdmin }) {
             )}
             {showInsights && (
                 <InsightsModal cards={cards} T={T} onClose={() => setShowInsights(false)} />
+            )}
+            {viewCard && (
+                <DetailModal
+                    card={viewCard} col={COLUMNS.find(c => c.id === viewCard.status) || COLUMNS[0]} T={T}
+                    onEdit={() => { setViewCard(null); openEdit(viewCard); }}
+                    onClose={() => setViewCard(null)}
+                />
             )}
             {importRows && (
                 <ImportPreviewModal
